@@ -3,7 +3,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.25-blue.svg)](https://go.dev/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Prosus-Cyber-Xchange/leakspok)](https://goreportcard.com/report/github.com/Prosus-Cyber-Xchange/leakspok)
 [![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen.svg)]()
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 **leakspok** is a Go library, inspired by [pii](https://github.com/gen0cide/pii), designed to detect and anonymize Personally Identifiable Information (PII) and sensitive data in strings and byte slices. It helps developers ensure data privacy and compliance by identifying potential information leaks and providing flexible anonymization strategies.
 
@@ -269,10 +269,6 @@ go test -race -count=1 ./...
 6. Push changes to your fork.
 7. Open a pull request.
 
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history and migration notes.
-
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
