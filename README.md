@@ -203,43 +203,22 @@ leakspok/
 └── root package           # Default rules and convenience exports
 ```
 
-## Benchmarks
-
-Benchmarks run on Apple M4, Go 1.25:
-
-| Benchmark | Operations/sec | Time/op | Bytes/op | Allocs/op |
-|-----------|---------------|---------|----------|-----------|
-| ByteAnalyzer.Anonymize | 34,935 | 32,575 ns | 31,945 | 891 |
-| ByteAnalyzer.Anonymize (large input) | 5,310 | 215,905 ns | 199,346 | 5,691 |
-| TokenIterator | 580,020 | 2,081 ns | 736 | 12 |
-| EmailMatcher | 22,211,720 | 52.8 ns | 0 | 0 |
-| CPFMatcher | 5,426,433 | 220 ns | 80 | 5 |
-| CNPJMatcher | 2,391,625 | 498 ns | 640 | 14 |
-| CreditCardMatcher | 1,000,000 | 1,076 ns | 176 | 11 |
-| IPMatcher | 942,981 | 1,263 ns | 1,376 | 32 |
-
-Run benchmarks locally:
-
-```bash
-go test -bench=. -benchmem ./...
-```
-
 ## Supported Entity Types
 
-| Entity | Constant | Detection |
-|--------|----------|-----------|
-| Email | `EntityEmail` | Email addresses with domain validation |
-| CPF | `EntityCPF` | Brazilian CPF with check digit validation |
-| CNPJ | `EntityCNPJ` | Brazilian CNPJ (numeric and alphanumeric) |
-| IP Address | `EntityIPAddress` | IPv4 and IPv6 with validation |
-| Credit Card | `EntityCreditCard` | Visa and MasterCard with Luhn check |
-| Phone | `EntityPhone` | International phone numbers |
-| URL / Link | `EntityLink` | URLs (excluding emails) |
-| SSN | `EntitySSN` | US Social Security Numbers |
-| Address | `EntityAddress` | Street addresses, PO boxes, ZIP codes |
-| Bank Info | `EntityBankInfo` | IBAN and routing numbers |
-| UUID | `EntityUUID` | UUID v3, v4, v5, and GUIDs |
-| VIN | `EntityVIN` | Vehicle Identification Numbers |
+| Entity | Constant | Entity ID | Detection |
+|--------|----------|-----------|-----------|
+| Email | `EntityEmail` | `EMAIL` | Email addresses with domain validation |
+| CPF | `EntityCPF` | `CPF_NUMBER` | Brazilian CPF with check digit validation |
+| CNPJ | `EntityCNPJ` | `CNPJ_NUMBER` | Brazilian CNPJ (numeric and alphanumeric) |
+| IP Address | `EntityIPAddress` | `IP_ADDRESS` | IPv4 and IPv6 with validation |
+| Credit Card | `EntityCreditCard` | `CREDIT_CARD` | Visa and MasterCard with Luhn check |
+| Phone | `EntityPhone` | `PHONE` | International phone numbers |
+| URL / Link | `EntityLink` | `LINK` | URLs (excluding emails) |
+| SSN | `EntitySSN` | `SSN` | US Social Security Numbers |
+| Address | `EntityAddress` | `ADDRESS` | Street addresses, PO boxes, ZIP codes |
+| Bank Info | `EntityBankInfo` | `BANK_INFO` | IBAN and routing numbers |
+| UUID | `EntityUUID` | `UUID` | UUID v3, v4, v5, and GUIDs |
+| VIN | `EntityVIN` | `VIN` | Vehicle Identification Numbers |
 
 ## Observability
 
@@ -274,9 +253,6 @@ Run tests with:
 ```bash
 # All tests with race detector and coverage
 go test -race -count=1 -cover ./...
-
-# Benchmarks
-go test -bench=. -benchmem ./...
 
 # With DataDog tracing enabled
 monitoring.SetGlobalTracer(monitoring.NewDatadogTracer())
