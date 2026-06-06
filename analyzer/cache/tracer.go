@@ -3,8 +3,8 @@ package cache
 import (
 	"context"
 
-	"github.com/ifood/leakspok/monitoring"
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/monitoring"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 )
 
 var _ CacheStore = (*CacheStoreTracer)(nil)

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	analyzercache "github.com/ifood/leakspok/analyzer/cache"
-	"github.com/ifood/leakspok/pattern"
+	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"

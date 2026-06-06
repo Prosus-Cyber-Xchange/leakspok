@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	analyzercache "github.com/ifood/leakspok/analyzer/cache"
+	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
 	"github.com/panjf2000/ants/v2"
 )
 

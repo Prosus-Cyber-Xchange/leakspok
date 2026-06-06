@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/eko/gocache/lib/v4/store"
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 )
 
 // NoopRuleMatchingCache is a no-operation cache implementation that doesn't store anything.

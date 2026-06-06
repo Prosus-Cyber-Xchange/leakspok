@@ -3,7 +3,7 @@ package cache
 import (
 	"context"
 
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 )
 
 // CacheStore defines the interface for caching rule matching results.

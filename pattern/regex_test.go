@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 )
 
 func TestMatchTestCreditCard(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	analyzercache "github.com/ifood/leakspok/analyzer/cache"
-	cachemock "github.com/ifood/leakspok/analyzer/cache/mocks"
-	"github.com/ifood/leakspok/pattern"
+	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
+	cachemock "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache/mocks"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

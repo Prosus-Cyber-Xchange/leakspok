@@ -24,9 +24,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/ifood/leakspok"
-	"github.com/ifood/leakspok/analyzer"
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 )
 
 // largeInput builds a synthetic log with multiple PII types embedded in

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ifood/leakspok/analyzer"
-	analyzercache "github.com/ifood/leakspok/analyzer/cache"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
+	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

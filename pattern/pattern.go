@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/ifood/leakspok/monitoring"
+	"github.com/Prosus-Cyber-Xchange/leakspok/monitoring"
 )
 
 //nolint:revive // type name is fine

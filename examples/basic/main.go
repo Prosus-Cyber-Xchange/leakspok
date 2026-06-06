@@ -17,9 +17,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/ifood/leakspok"
-	"github.com/ifood/leakspok/analyzer"
-	analyzercache "github.com/ifood/leakspok/analyzer/cache"
+	"github.com/Prosus-Cyber-Xchange/leakspok"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
+	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
 )
 
 func main() {

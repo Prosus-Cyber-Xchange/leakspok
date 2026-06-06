@@ -7,7 +7,7 @@ import (
 	"github.com/panjf2000/ants/v2"
 )
 
-//go:generate mockgen -destination=mocks/mock_worker_pool.go -package=analyzermock github.com/ifood/leakspok/analyzer WorkerPool
+//go:generate mockgen -destination=mocks/mock_worker_pool.go -package=analyzermock github.com/Prosus-Cyber-Xchange/leakspok/analyzer WorkerPool
 
 // WorkerPool abstracts a bounded goroutine pool.
 // Implementations must be safe for concurrent use.

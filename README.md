@@ -1,7 +1,7 @@
 # leakspok
 
 [![Go Version](https://img.shields.io/badge/Go-1.25-blue.svg)](https://go.dev/)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ifood/leakspok)](https://goreportcard.com/report/github.com/ifood/leakspok)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Prosus-Cyber-Xchange/leakspok)](https://goreportcard.com/report/github.com/Prosus-Cyber-Xchange/leakspok)
 [![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -67,8 +67,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/ifood/leakspok"
-	"github.com/ifood/leakspok/analyzer"
+	"github.com/Prosus-Cyber-Xchange/leakspok"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
 )
 
 func main() {
@@ -96,7 +96,7 @@ func main() {
 ## Installation
 
 ```bash
-go get github.com/ifood/leakspok
+go get github.com/Prosus-Cyber-Xchange/leakspok
 ```
 
 ## API Overview
@@ -252,7 +252,7 @@ Leakspok includes built-in observability features:
 DataDog tracing is **disabled by default**. To enable it, set the global tracer at program startup:
 
 ```go
-import "github.com/ifood/leakspok/monitoring"
+import "github.com/Prosus-Cyber-Xchange/leakspok/monitoring"
 
 func init() {
     monitoring.SetGlobalTracer(monitoring.NewDatadogTracer())

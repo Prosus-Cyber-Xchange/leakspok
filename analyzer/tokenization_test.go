@@ -3,7 +3,7 @@ package analyzer_test
 import (
 	"testing"
 
-	"github.com/ifood/leakspok/analyzer"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

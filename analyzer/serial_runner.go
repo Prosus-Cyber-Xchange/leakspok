@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	analyzercache "github.com/ifood/leakspok/analyzer/cache"
+	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
 )
 
 // SerialRulesRunner evaluates rules one at a time in order and returns the first match.

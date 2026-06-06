@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ifood/leakspok/analyzer"
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

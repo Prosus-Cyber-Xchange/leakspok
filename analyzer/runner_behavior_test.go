@@ -8,10 +8,10 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/ifood/leakspok/analyzer"
-	analyzercache "github.com/ifood/leakspok/analyzer/cache"
-	analyzermock "github.com/ifood/leakspok/analyzer/mocks"
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
+	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
+	analyzermock "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/mocks"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eko/gocache/lib/v4/store"
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/valkey-io/valkey-go"
 )
 

@@ -3,7 +3,7 @@ package analyzer
 import (
 	"context"
 
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 )
 
 //go:generate go run -mod=mod go.uber.org/mock/mockgen -destination=mocks/mock_rules.go -package=analyzermock -source=$GOFILE

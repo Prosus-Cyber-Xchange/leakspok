@@ -15,7 +15,7 @@ import (
 	"github.com/eko/gocache/lib/v4/store"
 	gocachestore "github.com/eko/gocache/store/freecache/v4"
 	redisstore "github.com/eko/gocache/store/redis/v4"
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/redis/go-redis/v9"
 )
 

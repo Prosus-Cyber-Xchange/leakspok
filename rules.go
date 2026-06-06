@@ -1,8 +1,8 @@
 package leakspok
 
 import (
-	"github.com/ifood/leakspok/analyzer"
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 )
 
 // DefaultMaskString is used to mask matches. It's useful when should report leaks on security alerts

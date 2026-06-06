@@ -8,8 +8,8 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/ifood/leakspok/monitoring"
-	"github.com/ifood/leakspok/pattern"
+	"github.com/Prosus-Cyber-Xchange/leakspok/monitoring"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 )
 
 // RuleRunner defines the interface for executing rules concurrently

@@ -1,4 +1,4 @@
-module github.com/ifood/leakspok
+module github.com/Prosus-Cyber-Xchange/leakspok
 
 go 1.25.0
 

@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	pattern "github.com/ifood/leakspok/pattern"
+	pattern "github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	gomock "go.uber.org/mock/gomock"
 )
 

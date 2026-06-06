@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	analyzercache "github.com/ifood/leakspok/analyzer/cache"
+	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
 )
 
 // resultItem holds the outcome of a single rule evaluation by a pool worker.
