@@ -33,6 +33,9 @@ type CacheOptions struct {
 	// or "host1:port1,host2:port2,..." for multiple nodes.
 	// When empty, the Redis/Valkey backend is disabled.
 	RedisAddr string
+	// RedisDisableClusterMode disables cluster mode and uses a standalone client instead.
+	// Default: false (cluster mode enabled).
+	RedisDisableClusterMode bool
 	// RedisUsername is the ACL username for Redis 6.0+ authentication. Optional.
 	RedisUsername string
 	// RedisPassword is the password for Redis authentication. Optional.
@@ -101,6 +104,7 @@ func buildCacheStore(ctx context.Context, options CacheOptions) (analyzercache.C
 		DisableInMemoryCache: options.DisableInMemoryCache,
 		Redis: analyzercache.RedisOptions{
 			Addr:               options.RedisAddr,
+			DisableClusterMode: options.RedisDisableClusterMode,
 			Username:           options.RedisUsername,
 			Password:           options.RedisPassword,
 			DialTimeout:        options.RedisDialTimeout,
