@@ -12,9 +12,7 @@ import (
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
-// startValkeyContainer starts a Valkey container using the testcontainers redis module.
-// Valkey is a Redis-compatible fork, so the redis module works transparently.
-func startValkeyContainer(t *testing.T) (addr string) {
+func startValkeyContainer(t *testing.T) string {
 	t.Helper()
 
 	ctx := context.Background()
@@ -35,15 +33,13 @@ func startValkeyContainer(t *testing.T) (addr string) {
 	return host + ":" + port.Port()
 }
 
-func TestValkeyRuleMatchingCache_BasicOperations(t *testing.T) {
+func TestRuleMatchingCache_BasicOperations(t *testing.T) {
 	addr := startValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
-		Backend:  analyzercache.BackendValkey,
 		CacheTTL: 10 * time.Second,
 		Redis: analyzercache.RedisOptions{
-			Enabled:            true,
 			Addr:               addr,
 			DisableClusterMode: true,
 		},
@@ -82,28 +78,25 @@ func TestValkeyRuleMatchingCache_BasicOperations(t *testing.T) {
 		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data, true))
 		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityPhone, data, false))
 
-		matchedEmail, err := cache.GetMatch(ctx, pattern.EntityEmail, data)
-		require.NoError(t, err)
+		matchedEmail, emailErr := cache.GetMatch(ctx, pattern.EntityEmail, data)
+		require.NoError(t, emailErr)
 		assert.True(t, matchedEmail)
 
-		matchedPhone, err := cache.GetMatch(ctx, pattern.EntityPhone, data)
-		require.NoError(t, err)
+		matchedPhone, phoneErr := cache.GetMatch(ctx, pattern.EntityPhone, data)
+		require.NoError(t, phoneErr)
 		assert.False(t, matchedPhone)
 	})
-
 }
 
-func TestValkeyRuleMatchingCache_TTLExpiry(t *testing.T) {
+func TestRuleMatchingCache_TTLExpiry(t *testing.T) {
 	addr := startValkeyContainer(t)
 	ctx := context.Background()
 
 	ttl := 200 * time.Millisecond
 
 	options := analyzercache.RuleMatchingCacheOptions{
-		Backend:  analyzercache.BackendValkey,
 		CacheTTL: ttl,
 		Redis: analyzercache.RedisOptions{
-			Enabled:            true,
 			Addr:               addr,
 			DisableClusterMode: true,
 		},
@@ -126,15 +119,13 @@ func TestValkeyRuleMatchingCache_TTLExpiry(t *testing.T) {
 	assert.True(t, analyzercache.IsCacheNotFoundError(missErr))
 }
 
-func TestValkeyRuleMatchingCache_NoTTL(t *testing.T) {
+func TestRuleMatchingCache_NoTTL(t *testing.T) {
 	addr := startValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
-		Backend:  analyzercache.BackendValkey,
-		CacheTTL: 0, // no expiry
+		CacheTTL: 0,
 		Redis: analyzercache.RedisOptions{
-			Enabled:            true,
 			Addr:               addr,
 			DisableClusterMode: true,
 		},
@@ -151,23 +142,19 @@ func TestValkeyRuleMatchingCache_NoTTL(t *testing.T) {
 	assert.True(t, matched)
 }
 
-// TestValkeyRuleMatchingCache_ClientSideCachingDisabled verifies that setting
-// Memory.CacheSize == -1 disables client-side caching and the backend still
+// TestRuleMatchingCache_InMemoryCacheDisabled verifies that setting
+// DisableInMemoryCache=true disables client-side caching and the backend still
 // works correctly (using plain Do instead of DoCache).
 // With CSC disabled every read goes to the server, so overwrite semantics are
 // immediately consistent.
-func TestValkeyRuleMatchingCache_ClientSideCachingDisabled(t *testing.T) {
+func TestRuleMatchingCache_InMemoryCacheDisabled(t *testing.T) {
 	addr := startValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
-		Backend:  analyzercache.BackendValkey,
-		CacheTTL: 10 * time.Second,
-		Memory: analyzercache.MemoryOptions{
-			CacheSize: -1, // disable client-side caching
-		},
+		CacheTTL:             10 * time.Second,
+		DisableInMemoryCache: true,
 		Redis: analyzercache.RedisOptions{
-			Enabled:            true,
 			Addr:               addr,
 			DisableClusterMode: true,
 		},
@@ -186,35 +173,31 @@ func TestValkeyRuleMatchingCache_ClientSideCachingDisabled(t *testing.T) {
 	})
 
 	t.Run("overwrites previous value for same key", func(t *testing.T) {
-		// Without CSC every read goes straight to the server, so overwrites are
-		// immediately visible with no invalidation race.
 		data := []byte("overwrite-me")
 		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityCPF, data, true))
 
-		matched, err := cache.GetMatch(ctx, pattern.EntityCPF, data)
-		require.NoError(t, err)
+		matched, firstErr := cache.GetMatch(ctx, pattern.EntityCPF, data)
+		require.NoError(t, firstErr)
 		assert.True(t, matched)
 
 		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityCPF, data, false))
 
-		matched, err = cache.GetMatch(ctx, pattern.EntityCPF, data)
-		require.NoError(t, err)
+		matched, secondErr := cache.GetMatch(ctx, pattern.EntityCPF, data)
+		require.NoError(t, secondErr)
 		assert.False(t, matched)
 	})
 }
 
-// TestValkeyRuleMatchingCache_AutoPipelining verifies that concurrent SaveMatch
+// TestRuleMatchingCache_AutoPipelining verifies that concurrent SaveMatch
 // and GetMatch calls all complete correctly, exercising the auto-pipelining path
 // where valkey-go coalesces concurrent Do calls into batched round-trips.
-func TestValkeyRuleMatchingCache_AutoPipelining(t *testing.T) {
+func TestRuleMatchingCache_AutoPipelining(t *testing.T) {
 	addr := startValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
-		Backend:  analyzercache.BackendValkey,
 		CacheTTL: 10 * time.Second,
 		Redis: analyzercache.RedisOptions{
-			Enabled:            true,
 			Addr:               addr,
 			DisableClusterMode: true,
 		},
@@ -229,7 +212,6 @@ func TestValkeyRuleMatchingCache_AutoPipelining(t *testing.T) {
 		keys[i] = []byte("pipeline-token-" + string(rune('A'+i%26)) + string(rune('0'+i%10)))
 	}
 
-	// Write all entries concurrently.
 	saveErrs := make(chan error, workers)
 	for i := 0; i < workers; i++ {
 		go func(i int) {
@@ -240,7 +222,6 @@ func TestValkeyRuleMatchingCache_AutoPipelining(t *testing.T) {
 		require.NoError(t, <-saveErrs)
 	}
 
-	// Read all entries concurrently and verify values.
 	type result struct {
 		idx     int
 		matched bool
@@ -249,8 +230,8 @@ func TestValkeyRuleMatchingCache_AutoPipelining(t *testing.T) {
 	results := make(chan result, workers)
 	for i := 0; i < workers; i++ {
 		go func(i int) {
-			matched, err := cache.GetMatch(ctx, pattern.EntityEmail, keys[i])
-			results <- result{i, matched, err}
+			matched, getErr := cache.GetMatch(ctx, pattern.EntityEmail, keys[i])
+			results <- result{i, matched, getErr}
 		}(i)
 	}
 	for range workers {
@@ -260,17 +241,15 @@ func TestValkeyRuleMatchingCache_AutoPipelining(t *testing.T) {
 	}
 }
 
-func TestValkeyRuleMatchingCache_PingOnConnect(t *testing.T) {
+func TestRuleMatchingCache_PingOnConnect(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("ping succeeds on valid address", func(t *testing.T) {
 		addr := startValkeyContainer(t)
 
 		options := analyzercache.RuleMatchingCacheOptions{
-			Backend:  analyzercache.BackendValkey,
 			CacheTTL: 10 * time.Second,
 			Redis: analyzercache.RedisOptions{
-				Enabled:            true,
 				Addr:               addr,
 				DisableClusterMode: true,
 				PingOnConnect:      true,
@@ -284,11 +263,9 @@ func TestValkeyRuleMatchingCache_PingOnConnect(t *testing.T) {
 
 	t.Run("ping fails on unreachable address", func(t *testing.T) {
 		options := analyzercache.RuleMatchingCacheOptions{
-			Backend:  analyzercache.BackendValkey,
 			CacheTTL: 10 * time.Second,
 			Redis: analyzercache.RedisOptions{
-				Enabled:            true,
-				Addr:               "localhost:19379", // nothing listening here
+				Addr:               "localhost:19379",
 				DisableClusterMode: true,
 				PingOnConnect:      true,
 			},

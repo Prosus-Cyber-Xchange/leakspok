@@ -23,14 +23,12 @@ func poolOptions(opts ConcurrencyOptions) []ants.Option {
 type CacheOptions struct {
 	// Enabled controls whether caching is active.
 	Enabled bool
-	// Backend selects the cache implementation. Default: gocache.
-	Backend string
 	// TTL is the time-to-live for cached entries. When 0, entries never expire.
 	TTL time.Duration
-	// MemorySize is the maximum size of the in-memory cache in bytes.
-	// When 0, a default of 10MB (10 * 1024 * 1024) is used.
-	// Set to -1 to disable in-memory caching (or client-side caching for the valkey backend).
-	MemorySize int
+	// DisableInMemoryCache disables client-side caching (server-assisted CSC).
+	// When false (default), valkey-go uses DoCache for local caching with
+	// server-driven invalidation. Set to true to disable and always hit the server.
+	DisableInMemoryCache bool
 	// RedisAddr is the Redis/Valkey node address(es) in the format "host:port"
 	// or "host1:port1,host2:port2,..." for multiple nodes.
 	// When empty, the Redis/Valkey backend is disabled.
@@ -55,8 +53,6 @@ type CacheOptions struct {
 	// RedisPingOnConnect controls whether a Ping is sent to Redis to verify connectivity
 	// when the client is first created. Default: false.
 	RedisPingOnConnect bool
-	// Metric configures Prometheus metrics (gocache backend only).
-	Metric analyzercache.RuleMatchingCacheMetricOptions
 	// TracingEnabled enables DataDog APM tracing for cache store operations.
 	// Each GetMatch and SaveMatch call emits a DataDog span. Requires Enabled=true.
 	TracingEnabled bool
@@ -101,14 +97,9 @@ func buildCacheStore(ctx context.Context, options CacheOptions) (analyzercache.C
 	}
 
 	c, err := analyzercache.NewCacheStore(ctx, analyzercache.RuleMatchingCacheOptions{
-		Backend:  analyzercache.Backend(options.Backend),
-		CacheTTL: options.TTL,
-		Memory: analyzercache.MemoryOptions{
-			Enabled:   options.MemorySize != -1,
-			CacheSize: options.MemorySize,
-		},
+		CacheTTL:             options.TTL,
+		DisableInMemoryCache: options.DisableInMemoryCache,
 		Redis: analyzercache.RedisOptions{
-			Enabled:            options.RedisAddr != "",
 			Addr:               options.RedisAddr,
 			Username:           options.RedisUsername,
 			Password:           options.RedisPassword,
@@ -120,7 +111,6 @@ func buildCacheStore(ctx context.Context, options CacheOptions) (analyzercache.C
 			InsecureSkipVerify: options.RedisInsecureSkipVerify,
 			PingOnConnect:      options.RedisPingOnConnect,
 		},
-		Metrics: options.Metric,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cache: %w", err)

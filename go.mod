@@ -4,18 +4,15 @@ go 1.25.0
 
 require (
 	github.com/DataDog/dd-trace-go/v2 v2.4.0
-	github.com/coocood/freecache v1.2.4
-	github.com/eko/gocache/lib/v4 v4.2.2
-	github.com/eko/gocache/store/freecache/v4 v4.2.3
-	github.com/eko/gocache/store/redis/v4 v4.2.6
 	github.com/google/uuid v1.6.0
 	github.com/panjf2000/ants/v2 v2.12.0
-	github.com/prometheus/client_golang v1.23.0
-	github.com/redis/go-redis/v9 v9.17.2
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go/modules/redis v0.40.0
+	github.com/valkey-io/valkey-go v1.0.75
 	go.uber.org/mock v0.6.0
 )
+
+require github.com/prometheus/client_golang v1.23.0 // indirect
 
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
@@ -83,7 +80,6 @@ require (
 	github.com/daixiang0/gci v0.13.5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/denis-tingaikin/go-header v0.5.0 // indirect
-	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/docker v28.5.1+incompatible // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
@@ -248,9 +244,6 @@ require (
 	github.com/ultraware/whitespace v0.2.0 // indirect
 	github.com/uudashr/gocognit v1.2.0 // indirect
 	github.com/uudashr/iface v1.3.1 // indirect
-	github.com/valkey-io/valkey-go v1.0.75
-	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
-	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xen0n/gosmopolitan v1.2.2 // indirect
 	github.com/yagipy/maintidx v1.0.0 // indirect
 	github.com/yeya24/promlinter v0.3.0 // indirect

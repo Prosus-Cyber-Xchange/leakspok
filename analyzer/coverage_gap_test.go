@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eko/gocache/lib/v4/store"
 	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
 	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
 	analyzermock "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/mocks"
@@ -110,28 +109,24 @@ func TestMakeStringAnalyzer_ConcurrentRuleProcessingSuccess(t *testing.T) {
 
 // ─── buildCacheStore Paths ───────────────────────────────────────────────────
 
-func TestMakeByteAnalyzer_CacheEnabledGocache(t *testing.T) {
-	// Tests buildCacheStore with Cache.Enabled=true (gocache backend)
+func TestMakeByteAnalyzer_CacheDisabled(t *testing.T) {
 	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		analyzer.RunnerOptions{
 			Cache: analyzer.CacheOptions{
-				Enabled: true,
-				TTL:     30 * time.Second,
+				Enabled: false,
 			},
 		})
 	require.NoError(t, err)
 	assert.NotNil(t, ba)
 }
 
-func TestMakeByteAnalyzer_CacheEnabledWithTracing(t *testing.T) {
-	// Tests buildCacheStore with TracingEnabled=true
-	// DefaultTracer is the noop tracer (build tag: !datadog), so this path works.
+func TestMakeByteAnalyzer_CacheDisabledWithTracing(t *testing.T) {
 	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		analyzer.RunnerOptions{
 			Cache: analyzer.CacheOptions{
-				Enabled:        true,
+				Enabled:        false,
 				TracingEnabled: true,
 			},
 		})
@@ -139,15 +134,11 @@ func TestMakeByteAnalyzer_CacheEnabledWithTracing(t *testing.T) {
 	assert.NotNil(t, ba)
 }
 
-func TestMakeByteAnalyzer_CacheWithMemorySizeZero(t *testing.T) {
-	// MemorySize=0 means use default (10MB), Memory.Enabled defaults to true
+func TestMakeByteAnalyzer_CacheDisabledWithDefaults(t *testing.T) {
 	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		analyzer.RunnerOptions{
-			Cache: analyzer.CacheOptions{
-				Enabled:    true,
-				MemorySize: 0, // default 10MB
-			},
+			Cache: analyzer.CacheOptions{},
 		})
 	require.NoError(t, err)
 	assert.NotNil(t, ba)
@@ -246,7 +237,7 @@ func (p *prePopulatedCache) GetMatch(ctx context.Context, entity pattern.Entity,
 		p.matchReturned = true
 		return p.matchResult, nil
 	}
-	return false, store.NotFound{}
+	return false, analyzercache.ErrCacheNotFound
 }
 
 func TestSerialRulesRunner_ProcessCachePositiveHit(t *testing.T) {
@@ -439,7 +430,7 @@ func (s *singleHitCache) GetMatch(ctx context.Context, entity pattern.Entity, da
 		s.used = true
 		return s.hit, nil
 	}
-	return false, store.NotFound{}
+	return false, analyzercache.ErrCacheNotFound
 }
 
 func (s *singleHitCache) SaveMatch(ctx context.Context, entity pattern.Entity, data []byte, matched bool) error {
@@ -552,15 +543,15 @@ func TestByteAnalyzer_AnonymizeNoFindingsWritesOriginal(t *testing.T) {
 	assert.Equal(t, input, output.Bytes())
 }
 
-// ─── CacheOptions with MemorySize=-1 (disable in-memory cache) ──────────────
+// ─── CacheOptions with DisableInMemoryCache=true ──────────────
 
-func TestMakeByteAnalyzer_CacheMemoryDisabled(t *testing.T) {
+func TestMakeByteAnalyzer_InMemoryCacheDisabledNoServer(t *testing.T) {
 	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		analyzer.RunnerOptions{
 			Cache: analyzer.CacheOptions{
-				Enabled:    true,
-				MemorySize: -1, // disables in-memory caching
+				Enabled:              false,
+				DisableInMemoryCache: true,
 			},
 		})
 	require.NoError(t, err)
