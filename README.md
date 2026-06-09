@@ -269,6 +269,17 @@ go test -race -count=1 ./...
 6. Push changes to your fork.
 7. Open a pull request.
 
+## Contact
+
+This project is maintained by iFood's AI Security team:
+
+| Name | Email |
+|------|-------|
+| Caio Cavalcante | caio.cavalcante@ifood.com.br |
+| Emanuel Valente | emanuel.valente@ifood.com.br |
+| José Almas | jose.almas@ifood.com.br |
+| Michelle Mesquita | michelle.mesquita@ifood.com.br |
+
 ## License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
