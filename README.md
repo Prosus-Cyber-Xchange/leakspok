@@ -5,6 +5,8 @@
 [![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
+> An [iFood](https://ifood.com.br) open-source project by the AI Security team.
+
 **leakspok** is a Go library, inspired by [pii](https://github.com/gen0cide/pii), designed to detect and anonymize Personally Identifiable Information (PII) and sensitive data in strings and byte slices. It helps developers ensure data privacy and compliance by identifying potential information leaks and providing flexible anonymization strategies.
 
 ## Features
