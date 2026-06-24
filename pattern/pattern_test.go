@@ -6,6 +6,7 @@ import (
 
 	pattern2 "github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Helper functions for testing
@@ -551,5 +552,70 @@ func TestEdgeCases(t *testing.T) {
 
 		assert.True(t, p.Match(t.Context(), largeData))
 		assert.False(t, p.Match(t.Context(), []byte("small")))
+	})
+}
+
+func TestRegex(t *testing.T) {
+	t.Run("matches simple pattern", func(t *testing.T) {
+		p, err := pattern2.Regex(`^hello$`)
+		require.NoError(t, err)
+		assert.True(t, p.Match(t.Context(), []byte("hello")))
+		assert.False(t, p.Match(t.Context(), []byte("world")))
+	})
+
+	t.Run("matches Go module version pattern", func(t *testing.T) {
+		p, err := pattern2.Regex(`@v\d+\.\d+\.\d+$`)
+		require.NoError(t, err)
+		assert.True(t, p.Match(t.Context(), []byte("metric@v1.44.0")))
+		assert.True(t, p.Match(t.Context(), []byte("otel/metric@v0.1.2")))
+		assert.False(t, p.Match(t.Context(), []byte("user@example.com")))
+		assert.False(t, p.Match(t.Context(), []byte("john@gmail.com")))
+	})
+
+	t.Run("matches partial content", func(t *testing.T) {
+		p, err := pattern2.Regex(`foo`)
+		require.NoError(t, err)
+		assert.True(t, p.Match(t.Context(), []byte("foobar")))
+		assert.True(t, p.Match(t.Context(), []byte("barfoo")))
+		assert.False(t, p.Match(t.Context(), []byte("bar")))
+	})
+
+	t.Run("matches with character classes", func(t *testing.T) {
+		p, err := pattern2.Regex(`\d{3}-\d{2}-\d{4}`)
+		require.NoError(t, err)
+		assert.True(t, p.Match(t.Context(), []byte("123-45-6789")))
+		assert.False(t, p.Match(t.Context(), []byte("abc-de-fghi")))
+	})
+
+	t.Run("matches with case-insensitive flag", func(t *testing.T) {
+		p, err := pattern2.Regex(`(?i)hello`)
+		require.NoError(t, err)
+		assert.True(t, p.Match(t.Context(), []byte("HELLO")))
+		assert.True(t, p.Match(t.Context(), []byte("Hello")))
+	})
+
+	t.Run("empty regex matches any input", func(t *testing.T) {
+		p, err := pattern2.Regex(``)
+		require.NoError(t, err)
+		assert.True(t, p.Match(t.Context(), []byte("")))
+		assert.True(t, p.Match(t.Context(), []byte("anything")))
+	})
+
+	t.Run("non-matching pattern returns false for nil input", func(t *testing.T) {
+		p, err := pattern2.Regex(`^hello$`)
+		require.NoError(t, err)
+		assert.False(t, p.Match(t.Context(), nil))
+	})
+
+	t.Run("invalid regex returns error", func(t *testing.T) {
+		_, err := pattern2.Regex(`[invalid`)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to compile regex pattern")
+	})
+
+	t.Run("name includes expression", func(t *testing.T) {
+		p, err := pattern2.Regex(`^test_\d+$`)
+		require.NoError(t, err)
+		assert.Equal(t, "Regex(^test_\\d+$)", p.Name())
 	})
 }
