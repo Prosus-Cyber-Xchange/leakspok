@@ -50,3 +50,15 @@
   - Deleted: none
 - Verified: `go test ./analyzer/cache/ -run 'TestRuleMatchingCache_ValkeyConfigMutator_OverridesMappedOption' -count=1` → pass; `go test ./analyzer/... -run 'Test.*ValkeyConfigMutator' -count=1` → pass (7/7 incl. container tests); `go test ./analyzer/... -count=1` → pass; `go build ./...` → pass; `gofmt -l analyzer/` → clean; `go vet ./analyzer/...` → clean; `golangci-lint run -c .golangci.yml ./analyzer/cache/` → only pre-existing `store.go`/`tracer.go` stutter findings, identical to base.
 - Notes: Blocking review finding: no serverless proof that a valid mutator override of a Leakspok-mapped option is used by client construction (the Task-1-fix deletion of `OverridesValidOption` left only server-observable Task-2 proof). Added `TestRuleMatchingCache_ValkeyConfigMutator_OverridesMappedOption`: `Addr: "localhost:19379"` mapped by Leakspok into `InitAddress`, mutator overrides to `[]string{"localhost:22222"}`, and the client-creation error (synchronous dial under `ForceSingleClient`) is asserted to contain the overridden endpoint and not the mapped one — requirements/valkey-client-configuration.md:36-39 and plan Task 1's override acceptance. `localhost` may resolve to `127.0.0.1` or `::1`, so assertions discriminate on the port (`22222` present, `19379` absent), documented in the test. Proven to fail when the mutator invocation is removed from `valkey.go` (temporary edit, reverted). design.md: replaced the `CLIENT GETNAME` wording in the ClientName test decision and Testing Strategy with the implemented separate-inspection-client + `CLIENT LIST` approach (as planned in plan.md Task 2 step 3). No production code changed; plan.md untouched.
+
+## Review: Task 1 (remediation) — 2026-08-31
+- Verdict: approved — see review.md
+
+## Review: Task 2 — 2026-08-31
+- Verdict: approved — see review.md
+
+## Review: Whole change (initial) — 2026-08-31
+- Verdict: changes-requested (blocking: 1 — override scenario not tested) — see review.md
+
+## Review: Whole change (final, after fix wave) — 2026-08-31
+- Verdict: approved — see review.md
