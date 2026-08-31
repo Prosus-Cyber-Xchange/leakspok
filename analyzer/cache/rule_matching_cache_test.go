@@ -2,6 +2,7 @@ package cache_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -383,4 +384,71 @@ func TestRuleMatchingCache_ValkeyConfigMutator_InvalidUpstreamOptionFails(t *tes
 	assert.Equal(t, 1, calls)
 	assert.Contains(t, err.Error(), "failed to create valkey client")
 	assert.Contains(t, err.Error(), "EnableRedirect and ReplicaAddress cannot be used together")
+}
+
+// TestRuleMatchingCache_ValkeyConfigMutator_ClientNameObservable proves
+// end-to-end that a ClientName assigned by ValkeyConfigMutator reaches a real
+// single-node Valkey server. The cache store is built through the public cache
+// factory path, a cache operation is performed against the container, and a
+// separate inspection client observes the configured name via CLIENT LIST.
+func TestRuleMatchingCache_ValkeyConfigMutator_ClientNameObservable(t *testing.T) {
+	const clientName = "leakspok-cache-mutator-integration"
+
+	addr := startValkeyContainer(t)
+	ctx := context.Background()
+
+	options := analyzercache.RuleMatchingCacheOptions{
+		CacheTTL: 10 * time.Second,
+		Redis: analyzercache.RedisOptions{
+			Addr:               addr,
+			DisableClusterMode: true,
+		},
+		ValkeyConfigMutator: func(opt *valkey.ClientOption) {
+			opt.ClientName = clientName
+		},
+	}
+
+	cache, err := analyzercache.NewCacheStore(ctx, options)
+	require.NoError(t, err)
+	require.NotNil(t, cache)
+
+	// Perform a real cache operation so the client connection is exercised.
+	data := []byte("client-name@example.com")
+	require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data, true))
+
+	matched, getErr := cache.GetMatch(ctx, pattern.EntityEmail, data)
+	require.NoError(t, getErr)
+	assert.True(t, matched)
+
+	assertValkeyClientName(ctx, t, addr, clientName)
+}
+
+// assertValkeyClientName connects an independent inspection client to addr and
+// asserts that Valkey's CLIENT LIST output reports a connection whose name is
+// clientName. CLIENT GETNAME is never used: issued on the inspection connection
+// it can only report that connection's own (empty) name, never the Leakspok
+// client's, so CLIENT LIST is queried and filtered instead.
+func assertValkeyClientName(ctx context.Context, t *testing.T, addr, clientName string) {
+	t.Helper()
+
+	inspector, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress:       []string{addr},
+		ForceSingleClient: true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(inspector.Close)
+
+	list, err := inspector.Do(ctx, inspector.B().ClientList().Build()).ToString()
+	require.NoError(t, err)
+
+	found := false
+	for _, line := range strings.Split(list, "\n") {
+		for _, field := range strings.Fields(line) {
+			if field == "name="+clientName {
+				found = true
+			}
+		}
+	}
+
+	assert.True(t, found, "CLIENT LIST did not report connection named %q:\n%s", clientName, list)
 }
