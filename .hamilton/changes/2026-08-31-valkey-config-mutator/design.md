@@ -34,7 +34,7 @@
 
 ### Decision: Test configuration propagation with ClientName
 
-- Choice: Add unit tests for nil handling, once-only invocation, default observation, and override ordering; add a single-node integration test that sets `ClientName` in the mutator and checks the active connection with `CLIENT GETNAME`.
+- Choice: Add unit tests for nil handling, once-only invocation, default observation, and override ordering; add a single-node integration test that sets `ClientName` in the mutator and observes the server-reported name via a separate inspection client running `CLIENT LIST`.
 - Alternatives considered: A multi-node cluster test would demonstrate actual replica selection but adds topology complexity beyond this change's contract. Pure unit testing cannot demonstrate that valkey-go received and applied a valid mutated option.
 - Rationale: `ClientName` is observable from a single-node Valkey server and proves the mutator survives the complete Leakspok-to-client construction path.
 
@@ -71,7 +71,7 @@ The callback is the one configuration extension point, so no parallel replica-sp
 ## Testing Strategy
 
 - Add focused unit tests around cache construction to assert the mutator receives Leakspok-mapped defaults, is called once, and can override a mapped option before construction.
-- Extend the existing Testcontainers-backed cache integration tests. Configure a deterministic `ClientName` through the public `analyzer.CacheOptions` factory path, then issue `CLIENT GETNAME` on the active Valkey connection or otherwise inspect the server-observable name. This validates end-to-end propagation with one Valkey node.
+- Extend the existing Testcontainers-backed cache integration tests. Configure a deterministic `ClientName` through the public `analyzer.CacheOptions` factory path, then connect a separate inspection client to the same container and assert that its `CLIENT LIST` output reports the configured `name=` for the Leakspok connection. `CLIENT GETNAME` is never used: issued on the inspection connection it can only report that connection's own name, never the Leakspok client's. This validates end-to-end propagation with one Valkey node.
 - Run the focused cache and analyzer tests. A multi-node cluster is not required because replica selection itself is delegated to valkey-go and is outside this extension seam's behavioral proof.
 
 ## Constraints & Boundaries

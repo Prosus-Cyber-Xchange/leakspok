@@ -356,6 +356,54 @@ func TestRuleMatchingCache_ValkeyConfigMutator_ObservesMappedDefaultsOnce(t *tes
 	assert.Equal(t, 5, observedPoolSize)
 }
 
+// TestRuleMatchingCache_ValkeyConfigMutator_OverridesMappedOption proves
+// serverless that a valid override of a Leakspok-mapped option is what client
+// construction actually uses. Leakspok maps RedisOptions.Addr into
+// opt.InitAddress; the mutator replaces it with a different valid value. Under
+// ForceSingleClient (which DisableClusterMode maps to), valkey-go dials
+// synchronously inside NewClient, so the returned dial error names the endpoint
+// the client was built with — the overridden one, never the mapped one.
+func TestRuleMatchingCache_ValkeyConfigMutator_OverridesMappedOption(t *testing.T) {
+	ctx := context.Background()
+
+	var calls int
+	var observedInitAddress []string
+
+	mutator := func(opt *valkey.ClientOption) {
+		calls++
+		observedInitAddress = opt.InitAddress
+		opt.InitAddress = []string{"localhost:22222"}
+	}
+
+	options := analyzercache.RuleMatchingCacheOptions{
+		CacheTTL: 10 * time.Second,
+		Redis: analyzercache.RedisOptions{
+			// No live server is needed: the callback runs before valkey.NewClient,
+			// and the synchronous dial against the overridden address fails with an
+			// error that names that address.
+			Addr:               "localhost:19379",
+			DisableClusterMode: true,
+		},
+		ValkeyConfigMutator: mutator,
+	}
+
+	cache, err := analyzercache.NewCacheStore(ctx, options)
+	require.Error(t, err)
+	assert.Nil(t, cache)
+	assert.Contains(t, err.Error(), "failed to create valkey client")
+
+	// The callback observed the Leakspok-mapped default exactly once and
+	// overrode it before client creation.
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, []string{"localhost:19379"}, observedInitAddress)
+
+	// Client creation was reached with the caller-assigned value: the dial error
+	// names the overridden endpoint. localhost may resolve to 127.0.0.1 or ::1,
+	// so the port is the stable discriminator; the mapped port must not appear.
+	assert.Contains(t, err.Error(), "22222")
+	assert.NotContains(t, err.Error(), "19379")
+}
+
 func TestRuleMatchingCache_ValkeyConfigMutator_InvalidUpstreamOptionFails(t *testing.T) {
 	ctx := context.Background()
 
