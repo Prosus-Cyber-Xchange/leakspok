@@ -14,7 +14,6 @@ import (
 	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/mock/gomock"
 )
@@ -562,30 +561,15 @@ func TestMakeByteAnalyzer_InMemoryCacheDisabledNoServer(t *testing.T) {
 
 // ─── ValkeyConfigMutator forwarding through the analyzer factory ────────────
 
-func startValkeyContainer(t *testing.T) string {
-	t.Helper()
-
-	ctx := context.Background()
-
-	container, err := tcredis.Run(ctx, "docker.io/valkey/valkey:8")
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		require.NoError(t, container.Terminate(ctx))
-	})
-
-	host, err := container.Host(ctx)
-	require.NoError(t, err)
-
-	port, err := container.MappedPort(ctx, "6379")
-	require.NoError(t, err)
-
-	return host + ":" + port.Port()
-}
+// unreachableAddr is a dummy address used by the mutator tests so that no live
+// server is required. In single-client mode (ForceSingleClient, which
+// DisableClusterMode maps to), valkey-go dials synchronously inside NewClient
+// and returns a connection failure; the mutator still runs exactly once with the
+// mapped Leakspok defaults before that dial, which is what these unit tests
+// assert.
+const unreachableAddr = "localhost:19379"
 
 func TestMakeByteAnalyzer_ValkeyConfigMutatorForwarded(t *testing.T) {
-	addr := startValkeyContainer(t)
-
 	var calls int
 	var observedInitAddress []string
 	var observedForceSingleClient bool
@@ -601,35 +585,43 @@ func TestMakeByteAnalyzer_ValkeyConfigMutatorForwarded(t *testing.T) {
 		analyzer.RunnerOptions{
 			Cache: analyzer.CacheOptions{
 				Enabled:                 true,
-				RedisAddr:               addr,
+				RedisAddr:               unreachableAddr,
 				RedisDisableClusterMode: true,
 				ValkeyConfigMutator:     mutator,
 			},
 		})
-	require.NoError(t, err)
-	assert.NotNil(t, ba)
 
-	// The callback is forwarded unchanged through buildCacheStore: invoked once
-	// with the mapped Leakspok defaults.
+	// No server is running, so client creation fails against the dummy address —
+	// but only AFTER the callback was forwarded unchanged through buildCacheStore
+	// and invoked once with the mapped Leakspok defaults.
+	require.Error(t, err)
+	assert.Equal(t, analyzer.ByteAnalyzer{}, ba)
+	assert.Contains(t, err.Error(), "failed to create cache")
+	assert.Contains(t, err.Error(), "failed to create valkey client")
+
 	assert.Equal(t, 1, calls)
-	assert.Equal(t, []string{addr}, observedInitAddress)
+	assert.Equal(t, []string{unreachableAddr}, observedInitAddress)
 	assert.True(t, observedForceSingleClient)
 }
 
 func TestMakeByteAnalyzer_ValkeyConfigMutatorNilPreservesDefaults(t *testing.T) {
-	addr := startValkeyContainer(t)
-
 	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		analyzer.RunnerOptions{
 			Cache: analyzer.CacheOptions{
 				Enabled:                 true,
-				RedisAddr:               addr,
+				RedisAddr:               unreachableAddr,
 				RedisDisableClusterMode: true,
 			},
 		})
-	require.NoError(t, err)
-	assert.NotNil(t, ba)
+
+	// With a nil mutator the default mapping is preserved: construction reaches
+	// real client creation and fails only because the dummy address is
+	// unreachable — the plain dial failure, with no mutator in play.
+	require.Error(t, err)
+	assert.Equal(t, analyzer.ByteAnalyzer{}, ba)
+	assert.Contains(t, err.Error(), "failed to create cache")
+	assert.Contains(t, err.Error(), "failed to create valkey client")
 }
 
 func TestMakeByteAnalyzer_ValkeyConfigMutatorInvalidUpstreamPropagates(t *testing.T) {

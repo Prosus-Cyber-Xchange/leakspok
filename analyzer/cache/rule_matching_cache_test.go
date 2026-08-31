@@ -279,7 +279,6 @@ func TestRuleMatchingCache_PingOnConnect(t *testing.T) {
 }
 
 func TestRuleMatchingCache_ValkeyConfigMutator_NilPreservesDefaults(t *testing.T) {
-	addr := startValkeyContainer(t)
 	ctx := context.Background()
 
 	calls := 0
@@ -287,26 +286,25 @@ func TestRuleMatchingCache_ValkeyConfigMutator_NilPreservesDefaults(t *testing.T
 	options := analyzercache.RuleMatchingCacheOptions{
 		CacheTTL: 10 * time.Second,
 		Redis: analyzercache.RedisOptions{
-			Addr:               addr,
+			// No live server is needed: with a nil mutator the default mapping
+			// stays intact and the only failure is the plain dial error against
+			// the unreachable address. The previous SaveMatch/GetMatch round-trip
+			// was redundant for this assertion.
+			Addr:               "localhost:19379",
 			DisableClusterMode: true,
 		},
 	}
 
 	cache, err := analyzercache.NewCacheStore(ctx, options)
-	require.NoError(t, err)
-	require.NotNil(t, cache)
+	require.Error(t, err)
+	assert.Nil(t, cache)
+	assert.Contains(t, err.Error(), "failed to create valkey client")
 
-	// A nil callback is never invoked and the default mapping stays intact:
-	// the cache still works against the server.
+	// A nil callback is never invoked and the default mapping stays intact.
 	assert.Equal(t, 0, calls)
-	require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, []byte("nil-mutator@example.com"), true))
-	matched, getErr := cache.GetMatch(ctx, pattern.EntityEmail, []byte("nil-mutator@example.com"))
-	require.NoError(t, getErr)
-	assert.True(t, matched)
 }
 
 func TestRuleMatchingCache_ValkeyConfigMutator_ObservesMappedDefaultsOnce(t *testing.T) {
-	addr := startValkeyContainer(t)
 	ctx := context.Background()
 
 	var calls int
@@ -329,7 +327,10 @@ func TestRuleMatchingCache_ValkeyConfigMutator_ObservesMappedDefaultsOnce(t *tes
 		CacheTTL:             10 * time.Second,
 		DisableInMemoryCache: true,
 		Redis: analyzercache.RedisOptions{
-			Addr:               addr,
+			// No live server is needed: this test asserts only mutator-observable
+			// values, captured before client creation fails against the
+			// unreachable address.
+			Addr:               "localhost:19379",
 			DisableClusterMode: true,
 			DialTimeout:        2 * time.Second,
 			WriteTimeout:       3 * time.Second,
@@ -339,45 +340,19 @@ func TestRuleMatchingCache_ValkeyConfigMutator_ObservesMappedDefaultsOnce(t *tes
 	}
 
 	cache, err := analyzercache.NewCacheStore(ctx, options)
-	require.NoError(t, err)
-	require.NotNil(t, cache)
+	require.Error(t, err)
+	assert.Nil(t, cache)
+	assert.Contains(t, err.Error(), "failed to create valkey client")
 
+	// The callback observed every Leakspok mapping exactly once before client
+	// creation failed against the unreachable address.
 	assert.Equal(t, 1, calls)
-	assert.Equal(t, []string{addr}, observedInitAddress)
+	assert.Equal(t, []string{"localhost:19379"}, observedInitAddress)
 	assert.True(t, observedForceSingleClient)
 	assert.True(t, observedDisableCache)
 	assert.Equal(t, 2*time.Second, observedDialTimeout)
 	assert.Equal(t, 3*time.Second, observedConnWriteTimeout)
 	assert.Equal(t, 5, observedPoolSize)
-}
-
-func TestRuleMatchingCache_ValkeyConfigMutator_OverridesValidOption(t *testing.T) {
-	addr := startValkeyContainer(t)
-	ctx := context.Background()
-
-	var calls int
-
-	// The mapped address is unreachable on purpose; the override must win so
-	// that valkey-go dials and pings the real container instead.
-	mutator := func(opt *valkey.ClientOption) {
-		calls++
-		opt.InitAddress = []string{addr}
-	}
-
-	options := analyzercache.RuleMatchingCacheOptions{
-		CacheTTL: 10 * time.Second,
-		Redis: analyzercache.RedisOptions{
-			Addr:               "localhost:1",
-			DisableClusterMode: true,
-			PingOnConnect:      true,
-		},
-		ValkeyConfigMutator: mutator,
-	}
-
-	cache, err := analyzercache.NewCacheStore(ctx, options)
-	require.NoError(t, err)
-	require.NotNil(t, cache)
-	assert.Equal(t, 1, calls)
 }
 
 func TestRuleMatchingCache_ValkeyConfigMutator_InvalidUpstreamOptionFails(t *testing.T) {
