@@ -62,3 +62,19 @@
 
 ## Review: Whole change (final, after fix wave) — 2026-08-31
 - Verdict: approved — see review.md
+
+## Non-blocking review fixes: deduplicate test helpers, clean nil assertions — 2026-08-31
+- Outcome: done
+- Changed:
+  - Created: `analyzer/cache/testutil/valkey.go` (shared `StartValkeyContainer` + `AssertValkeyClientName` helpers)
+  - Modified: `analyzer/cache/rule_matching_cache_test.go`, `analyzer/coverage_gap_test.go`
+  - Deleted: local helper copies in both test files
+- Verified: `go test ./analyzer/... -run 'Test.*ValkeyConfigMutator' -count=1` → pass (9/9); `go test ./analyzer/... -count=1` → pass; `go build ./...` → pass; `gofmt -l analyzer/` → clean; `go vet ./analyzer/...` → clean.
+- Notes: Extracted duplicated `startValkeyContainer` and `assertValkeyClientName` into shared `testutil` package; removed dead `calls` variable in nil-mutator test; added port-rationale comments at `localhost:19379` usage sites. No production code changed.
+
+## Finish — 2026-08-31
+- Preconditions: tree clean, tests green, reviews approved (whole change); whole-change review freshness waived (non-blocking fix commits postdate the approved final review but change no behavior)
+- Specs synced: created `.hamilton/specs/valkey-client-configuration.md`
+- Finished: pull request (to be opened)
+- Workspace: worked in place on branch `fix/valkey-read-replicas`
+- Route: not route-backed
