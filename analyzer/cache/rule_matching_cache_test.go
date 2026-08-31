@@ -2,41 +2,19 @@ package cache_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
 	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache/testutil"
 	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/valkey-io/valkey-go"
 )
 
-func startValkeyContainer(t *testing.T) string {
-	t.Helper()
-
-	ctx := context.Background()
-
-	container, err := tcredis.Run(ctx, "docker.io/valkey/valkey:8")
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		require.NoError(t, container.Terminate(ctx))
-	})
-
-	host, err := container.Host(ctx)
-	require.NoError(t, err)
-
-	port, err := container.MappedPort(ctx, "6379")
-	require.NoError(t, err)
-
-	return host + ":" + port.Port()
-}
-
 func TestRuleMatchingCache_BasicOperations(t *testing.T) {
-	addr := startValkeyContainer(t)
+	addr := testutil.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -91,7 +69,7 @@ func TestRuleMatchingCache_BasicOperations(t *testing.T) {
 }
 
 func TestRuleMatchingCache_TTLExpiry(t *testing.T) {
-	addr := startValkeyContainer(t)
+	addr := testutil.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	ttl := 200 * time.Millisecond
@@ -122,7 +100,7 @@ func TestRuleMatchingCache_TTLExpiry(t *testing.T) {
 }
 
 func TestRuleMatchingCache_NoTTL(t *testing.T) {
-	addr := startValkeyContainer(t)
+	addr := testutil.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -150,7 +128,7 @@ func TestRuleMatchingCache_NoTTL(t *testing.T) {
 // With CSC disabled every read goes to the server, so overwrite semantics are
 // immediately consistent.
 func TestRuleMatchingCache_InMemoryCacheDisabled(t *testing.T) {
-	addr := startValkeyContainer(t)
+	addr := testutil.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -194,7 +172,7 @@ func TestRuleMatchingCache_InMemoryCacheDisabled(t *testing.T) {
 // and GetMatch calls all complete correctly, exercising the auto-pipelining path
 // where valkey-go coalesces concurrent Do calls into batched round-trips.
 func TestRuleMatchingCache_AutoPipelining(t *testing.T) {
-	addr := startValkeyContainer(t)
+	addr := testutil.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -247,7 +225,7 @@ func TestRuleMatchingCache_PingOnConnect(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("ping succeeds on valid address", func(t *testing.T) {
-		addr := startValkeyContainer(t)
+		addr := testutil.StartValkeyContainer(t)
 
 		options := analyzercache.RuleMatchingCacheOptions{
 			CacheTTL: 10 * time.Second,
@@ -267,6 +245,9 @@ func TestRuleMatchingCache_PingOnConnect(t *testing.T) {
 		options := analyzercache.RuleMatchingCacheOptions{
 			CacheTTL: 10 * time.Second,
 			Redis: analyzercache.RedisOptions{
+				// Port intentionally picked as an unlikely-to-bind high port for
+				// unreachable-address assertions: if a service ever binds it, this
+				// test fails loudly, not silently.
 				Addr:               "localhost:19379",
 				DisableClusterMode: true,
 				PingOnConnect:      true,
@@ -282,15 +263,15 @@ func TestRuleMatchingCache_PingOnConnect(t *testing.T) {
 func TestRuleMatchingCache_ValkeyConfigMutator_NilPreservesDefaults(t *testing.T) {
 	ctx := context.Background()
 
-	calls := 0
-
 	options := analyzercache.RuleMatchingCacheOptions{
 		CacheTTL: 10 * time.Second,
 		Redis: analyzercache.RedisOptions{
 			// No live server is needed: with a nil mutator the default mapping
 			// stays intact and the only failure is the plain dial error against
 			// the unreachable address. The previous SaveMatch/GetMatch round-trip
-			// was redundant for this assertion.
+			// was redundant for this assertion. Port 19379 is an intentionally
+			// unlikely-to-bind high port: if a service ever binds it, the
+			// unreachable-address assertions fail loudly, not silently.
 			Addr:               "localhost:19379",
 			DisableClusterMode: true,
 		},
@@ -300,9 +281,6 @@ func TestRuleMatchingCache_ValkeyConfigMutator_NilPreservesDefaults(t *testing.T
 	require.Error(t, err)
 	assert.Nil(t, cache)
 	assert.Contains(t, err.Error(), "failed to create valkey client")
-
-	// A nil callback is never invoked and the default mapping stays intact.
-	assert.Equal(t, 0, calls)
 }
 
 func TestRuleMatchingCache_ValkeyConfigMutator_ObservesMappedDefaultsOnce(t *testing.T) {
@@ -330,7 +308,9 @@ func TestRuleMatchingCache_ValkeyConfigMutator_ObservesMappedDefaultsOnce(t *tes
 		Redis: analyzercache.RedisOptions{
 			// No live server is needed: this test asserts only mutator-observable
 			// values, captured before client creation fails against the
-			// unreachable address.
+			// unreachable address. Port 19379 is an intentionally unlikely-to-bind
+			// high port: if a service ever binds it, the tests fail loudly, not
+			// silently.
 			Addr:               "localhost:19379",
 			DisableClusterMode: true,
 			DialTimeout:        2 * time.Second,
@@ -380,7 +360,9 @@ func TestRuleMatchingCache_ValkeyConfigMutator_OverridesMappedOption(t *testing.
 		Redis: analyzercache.RedisOptions{
 			// No live server is needed: the callback runs before valkey.NewClient,
 			// and the synchronous dial against the overridden address fails with an
-			// error that names that address.
+			// error that names that address. Port 19379 is an intentionally
+			// unlikely-to-bind high port: if a service ever binds it, the tests
+			// fail loudly, not silently.
 			Addr:               "localhost:19379",
 			DisableClusterMode: true,
 		},
@@ -442,7 +424,7 @@ func TestRuleMatchingCache_ValkeyConfigMutator_InvalidUpstreamOptionFails(t *tes
 func TestRuleMatchingCache_ValkeyConfigMutator_ClientNameObservable(t *testing.T) {
 	const clientName = "leakspok-cache-mutator-integration"
 
-	addr := startValkeyContainer(t)
+	addr := testutil.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -468,35 +450,5 @@ func TestRuleMatchingCache_ValkeyConfigMutator_ClientNameObservable(t *testing.T
 	require.NoError(t, getErr)
 	assert.True(t, matched)
 
-	assertValkeyClientName(ctx, t, addr, clientName)
-}
-
-// assertValkeyClientName connects an independent inspection client to addr and
-// asserts that Valkey's CLIENT LIST output reports a connection whose name is
-// clientName. CLIENT GETNAME is never used: issued on the inspection connection
-// it can only report that connection's own (empty) name, never the Leakspok
-// client's, so CLIENT LIST is queried and filtered instead.
-func assertValkeyClientName(ctx context.Context, t *testing.T, addr, clientName string) {
-	t.Helper()
-
-	inspector, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress:       []string{addr},
-		ForceSingleClient: true,
-	})
-	require.NoError(t, err)
-	t.Cleanup(inspector.Close)
-
-	list, err := inspector.Do(ctx, inspector.B().ClientList().Build()).ToString()
-	require.NoError(t, err)
-
-	found := false
-	for _, line := range strings.Split(list, "\n") {
-		for _, field := range strings.Fields(line) {
-			if field == "name="+clientName {
-				found = true
-			}
-		}
-	}
-
-	assert.True(t, found, "CLIENT LIST did not report connection named %q:\n%s", clientName, list)
+	testutil.AssertValkeyClientName(t, addr, clientName)
 }

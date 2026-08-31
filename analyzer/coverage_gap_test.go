@@ -5,17 +5,16 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
 	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache/testutil"
 	analyzermock "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/mocks"
 	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/mock/gomock"
 )
@@ -569,6 +568,10 @@ func TestMakeByteAnalyzer_InMemoryCacheDisabledNoServer(t *testing.T) {
 // and returns a connection failure; the mutator still runs exactly once with the
 // mapped Leakspok defaults before that dial, which is what these unit tests
 // assert.
+//
+// The port is intentionally an unlikely-to-bind high port for
+// unreachable-address assertions: if a service ever binds it, these tests fail
+// loudly, not silently.
 const unreachableAddr = "localhost:19379"
 
 func TestMakeByteAnalyzer_ValkeyConfigMutatorForwarded(t *testing.T) {
@@ -653,60 +656,6 @@ func TestMakeByteAnalyzer_ValkeyConfigMutatorInvalidUpstreamPropagates(t *testin
 	assert.Contains(t, err.Error(), "EnableRedirect and ReplicaAddress cannot be used together")
 }
 
-// startValkeyContainer starts a disposable single-node Valkey server and returns
-// its "host:port" address. Mirrors the same helper in the analyzer/cache package
-// (unexported per package).
-func startValkeyContainer(t *testing.T) string {
-	t.Helper()
-
-	ctx := context.Background()
-
-	container, err := tcredis.Run(ctx, "docker.io/valkey/valkey:8")
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		require.NoError(t, container.Terminate(ctx))
-	})
-
-	host, err := container.Host(ctx)
-	require.NoError(t, err)
-
-	port, err := container.MappedPort(ctx, "6379")
-	require.NoError(t, err)
-
-	return host + ":" + port.Port()
-}
-
-// assertValkeyClientName connects an independent inspection client to addr and
-// asserts that Valkey's CLIENT LIST output reports a connection whose name is
-// clientName. CLIENT GETNAME is never used: issued on the inspection connection
-// it can only report that connection's own (empty) name, never the Leakspok
-// client's, so CLIENT LIST is queried and filtered instead.
-func assertValkeyClientName(ctx context.Context, t *testing.T, addr, clientName string) {
-	t.Helper()
-
-	inspector, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress:       []string{addr},
-		ForceSingleClient: true,
-	})
-	require.NoError(t, err)
-	t.Cleanup(inspector.Close)
-
-	list, err := inspector.Do(ctx, inspector.B().ClientList().Build()).ToString()
-	require.NoError(t, err)
-
-	found := false
-	for _, line := range strings.Split(list, "\n") {
-		for _, field := range strings.Fields(line) {
-			if field == "name="+clientName {
-				found = true
-			}
-		}
-	}
-
-	assert.True(t, found, "CLIENT LIST did not report connection named %q:\n%s", clientName, list)
-}
-
 // TestMakeByteAnalyzer_ValkeyConfigMutator_ClientNameObservable proves
 // end-to-end that a ClientName set through the public analyzer cache
 // configuration path (analyzer.CacheOptions.ValkeyConfigMutator) is applied to
@@ -717,7 +666,7 @@ func assertValkeyClientName(ctx context.Context, t *testing.T, addr, clientName 
 func TestMakeByteAnalyzer_ValkeyConfigMutator_ClientNameObservable(t *testing.T) {
 	const clientName = "leakspok-analyzer-mutator-integration"
 
-	addr := startValkeyContainer(t)
+	addr := testutil.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	ba, err := analyzer.MakeByteAnalyzer(ctx,
@@ -763,5 +712,5 @@ func TestMakeByteAnalyzer_ValkeyConfigMutator_ClientNameObservable(t *testing.T)
 	assert.False(t, details.HasFindings)
 	assert.Equal(t, string(input), out.String())
 
-	assertValkeyClientName(ctx, t, addr, clientName)
+	testutil.AssertValkeyClientName(t, addr, clientName)
 }
