@@ -1,8 +1,8 @@
-// Package testutil provides shared test-support helpers for the leakspok test
+// Package testing provides shared test-support helpers for the leakspok test
 // suites. It exists so that container-backed Valkey helpers are defined once and
 // reused by both the analyzer and analyzer/cache test packages instead of being
 // duplicated per package.
-package testutil
+package testing
 
 import (
 	"context"

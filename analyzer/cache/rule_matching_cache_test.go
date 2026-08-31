@@ -6,7 +6,7 @@ import (
 	"time"
 
 	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
-	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache/testutil"
+	cachetesting "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache/testing"
 	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +14,7 @@ import (
 )
 
 func TestRuleMatchingCache_BasicOperations(t *testing.T) {
-	addr := testutil.StartValkeyContainer(t)
+	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -69,7 +69,7 @@ func TestRuleMatchingCache_BasicOperations(t *testing.T) {
 }
 
 func TestRuleMatchingCache_TTLExpiry(t *testing.T) {
-	addr := testutil.StartValkeyContainer(t)
+	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	ttl := 200 * time.Millisecond
@@ -100,7 +100,7 @@ func TestRuleMatchingCache_TTLExpiry(t *testing.T) {
 }
 
 func TestRuleMatchingCache_NoTTL(t *testing.T) {
-	addr := testutil.StartValkeyContainer(t)
+	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -128,7 +128,7 @@ func TestRuleMatchingCache_NoTTL(t *testing.T) {
 // With CSC disabled every read goes to the server, so overwrite semantics are
 // immediately consistent.
 func TestRuleMatchingCache_InMemoryCacheDisabled(t *testing.T) {
-	addr := testutil.StartValkeyContainer(t)
+	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -172,7 +172,7 @@ func TestRuleMatchingCache_InMemoryCacheDisabled(t *testing.T) {
 // and GetMatch calls all complete correctly, exercising the auto-pipelining path
 // where valkey-go coalesces concurrent Do calls into batched round-trips.
 func TestRuleMatchingCache_AutoPipelining(t *testing.T) {
-	addr := testutil.StartValkeyContainer(t)
+	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -225,7 +225,7 @@ func TestRuleMatchingCache_PingOnConnect(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("ping succeeds on valid address", func(t *testing.T) {
-		addr := testutil.StartValkeyContainer(t)
+		addr := cachetesting.StartValkeyContainer(t)
 
 		options := analyzercache.RuleMatchingCacheOptions{
 			CacheTTL: 10 * time.Second,
@@ -424,7 +424,7 @@ func TestRuleMatchingCache_ValkeyConfigMutator_InvalidUpstreamOptionFails(t *tes
 func TestRuleMatchingCache_ValkeyConfigMutator_ClientNameObservable(t *testing.T) {
 	const clientName = "leakspok-cache-mutator-integration"
 
-	addr := testutil.StartValkeyContainer(t)
+	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -450,5 +450,5 @@ func TestRuleMatchingCache_ValkeyConfigMutator_ClientNameObservable(t *testing.T
 	require.NoError(t, getErr)
 	assert.True(t, matched)
 
-	testutil.AssertValkeyClientName(t, addr, clientName)
+	cachetesting.AssertValkeyClientName(t, addr, clientName)
 }

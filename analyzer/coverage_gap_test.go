@@ -10,7 +10,7 @@ import (
 
 	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
 	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
-	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache/testutil"
+	cachetesting "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache/testing"
 	analyzermock "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/mocks"
 	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
@@ -667,7 +667,7 @@ func TestMakeByteAnalyzer_ValkeyConfigMutator(t *testing.T) {
 	t.Run("client name observable on server", func(t *testing.T) {
 		const clientName = "leakspok-analyzer-mutator-integration"
 
-		addr := testutil.StartValkeyContainer(t)
+		addr := cachetesting.StartValkeyContainer(t)
 		ctx := context.Background()
 
 		ba, err := analyzer.MakeByteAnalyzer(ctx,
@@ -713,6 +713,6 @@ func TestMakeByteAnalyzer_ValkeyConfigMutator(t *testing.T) {
 		assert.False(t, details.HasFindings)
 		assert.Equal(t, string(input), out.String())
 
-		testutil.AssertValkeyClientName(t, addr, clientName)
+		cachetesting.AssertValkeyClientName(t, addr, clientName)
 	})
 }
