@@ -75,6 +75,6 @@
 ## Finish — 2026-08-31
 - Preconditions: tree clean, tests green, reviews approved (whole change); whole-change review freshness waived (non-blocking fix commits postdate the approved final review but change no behavior)
 - Specs synced: created `.hamilton/specs/valkey-client-configuration.md`
-- Finished: pull request (to be opened)
+- Finished: pull request https://github.com/Prosus-Cyber-Xchange/leakspok/pull/6
 - Workspace: worked in place on branch `fix/valkey-read-replicas`
 - Route: not route-backed
