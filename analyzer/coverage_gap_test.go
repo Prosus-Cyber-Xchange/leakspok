@@ -574,143 +574,145 @@ func TestMakeByteAnalyzer_InMemoryCacheDisabledNoServer(t *testing.T) {
 // loudly, not silently.
 const unreachableAddr = "localhost:19379"
 
-func TestMakeByteAnalyzer_ValkeyConfigMutatorForwarded(t *testing.T) {
-	var calls int
-	var observedInitAddress []string
-	var observedForceSingleClient bool
+func TestMakeByteAnalyzer_ValkeyConfigMutator(t *testing.T) {
+	t.Run("forwarded with mapped defaults", func(t *testing.T) {
+		var calls int
+		var observedInitAddress []string
+		var observedForceSingleClient bool
 
-	mutator := func(opt *valkey.ClientOption) {
-		calls++
-		observedInitAddress = opt.InitAddress
-		observedForceSingleClient = opt.ForceSingleClient
-	}
+		mutator := func(opt *valkey.ClientOption) {
+			calls++
+			observedInitAddress = opt.InitAddress
+			observedForceSingleClient = opt.ForceSingleClient
+		}
 
-	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		analyzer.RunnerOptions{
-			Cache: analyzer.CacheOptions{
-				Enabled:                 true,
-				RedisAddr:               unreachableAddr,
-				RedisDisableClusterMode: true,
-				ValkeyConfigMutator:     mutator,
-			},
-		})
+		ba, err := analyzer.MakeByteAnalyzer(context.Background(),
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			analyzer.RunnerOptions{
+				Cache: analyzer.CacheOptions{
+					Enabled:                 true,
+					RedisAddr:               unreachableAddr,
+					RedisDisableClusterMode: true,
+					ValkeyConfigMutator:     mutator,
+				},
+			})
 
-	// No server is running, so client creation fails against the dummy address —
-	// but only AFTER the callback was forwarded unchanged through buildCacheStore
-	// and invoked once with the mapped Leakspok defaults.
-	require.Error(t, err)
-	assert.Equal(t, analyzer.ByteAnalyzer{}, ba)
-	assert.Contains(t, err.Error(), "failed to create cache")
-	assert.Contains(t, err.Error(), "failed to create valkey client")
+		// No server is running, so client creation fails against the dummy address —
+		// but only AFTER the callback was forwarded unchanged through buildCacheStore
+		// and invoked once with the mapped Leakspok defaults.
+		require.Error(t, err)
+		assert.Equal(t, analyzer.ByteAnalyzer{}, ba)
+		assert.Contains(t, err.Error(), "failed to create cache")
+		assert.Contains(t, err.Error(), "failed to create valkey client")
 
-	assert.Equal(t, 1, calls)
-	assert.Equal(t, []string{unreachableAddr}, observedInitAddress)
-	assert.True(t, observedForceSingleClient)
-}
+		assert.Equal(t, 1, calls)
+		assert.Equal(t, []string{unreachableAddr}, observedInitAddress)
+		assert.True(t, observedForceSingleClient)
+	})
 
-func TestMakeByteAnalyzer_ValkeyConfigMutatorNilPreservesDefaults(t *testing.T) {
-	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		analyzer.RunnerOptions{
-			Cache: analyzer.CacheOptions{
-				Enabled:                 true,
-				RedisAddr:               unreachableAddr,
-				RedisDisableClusterMode: true,
-			},
-		})
+	t.Run("nil mutator preserves defaults", func(t *testing.T) {
+		ba, err := analyzer.MakeByteAnalyzer(context.Background(),
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			analyzer.RunnerOptions{
+				Cache: analyzer.CacheOptions{
+					Enabled:                 true,
+					RedisAddr:               unreachableAddr,
+					RedisDisableClusterMode: true,
+				},
+			})
 
-	// With a nil mutator the default mapping is preserved: construction reaches
-	// real client creation and fails only because the dummy address is
-	// unreachable — the plain dial failure, with no mutator in play.
-	require.Error(t, err)
-	assert.Equal(t, analyzer.ByteAnalyzer{}, ba)
-	assert.Contains(t, err.Error(), "failed to create cache")
-	assert.Contains(t, err.Error(), "failed to create valkey client")
-}
+		// With a nil mutator the default mapping is preserved: construction reaches
+		// real client creation and fails only because the dummy address is
+		// unreachable — the plain dial failure, with no mutator in play.
+		require.Error(t, err)
+		assert.Equal(t, analyzer.ByteAnalyzer{}, ba)
+		assert.Contains(t, err.Error(), "failed to create cache")
+		assert.Contains(t, err.Error(), "failed to create valkey client")
+	})
 
-func TestMakeByteAnalyzer_ValkeyConfigMutatorInvalidUpstreamPropagates(t *testing.T) {
-	var calls int
+	t.Run("invalid upstream option propagates", func(t *testing.T) {
+		var calls int
 
-	mutator := func(opt *valkey.ClientOption) {
-		calls++
-		opt.Standalone.EnableRedirect = true
-		opt.Standalone.ReplicaAddress = []string{"localhost:6379"}
-	}
+		mutator := func(opt *valkey.ClientOption) {
+			calls++
+			opt.Standalone.EnableRedirect = true
+			opt.Standalone.ReplicaAddress = []string{"localhost:6379"}
+		}
 
-	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		analyzer.RunnerOptions{
-			Cache: analyzer.CacheOptions{
-				Enabled:                 true,
-				RedisAddr:               "localhost:6379",
-				RedisDisableClusterMode: true,
-				ValkeyConfigMutator:     mutator,
-			},
-		})
-	require.Error(t, err)
-	assert.Equal(t, analyzer.ByteAnalyzer{}, ba)
-	assert.Equal(t, 1, calls)
-	assert.Contains(t, err.Error(), "failed to create cache")
-	assert.Contains(t, err.Error(), "failed to create valkey client")
-	assert.Contains(t, err.Error(), "EnableRedirect and ReplicaAddress cannot be used together")
-}
+		ba, err := analyzer.MakeByteAnalyzer(context.Background(),
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			analyzer.RunnerOptions{
+				Cache: analyzer.CacheOptions{
+					Enabled:                 true,
+					RedisAddr:               "localhost:6379",
+					RedisDisableClusterMode: true,
+					ValkeyConfigMutator:     mutator,
+				},
+			})
+		require.Error(t, err)
+		assert.Equal(t, analyzer.ByteAnalyzer{}, ba)
+		assert.Equal(t, 1, calls)
+		assert.Contains(t, err.Error(), "failed to create cache")
+		assert.Contains(t, err.Error(), "failed to create valkey client")
+		assert.Contains(t, err.Error(), "EnableRedirect and ReplicaAddress cannot be used together")
+	})
 
-// TestMakeByteAnalyzer_ValkeyConfigMutator_ClientNameObservable proves
-// end-to-end that a ClientName set through the public analyzer cache
-// configuration path (analyzer.CacheOptions.ValkeyConfigMutator) is applied to
-// the Valkey client used by the rule-matching cache. A disposable single-node
-// Valkey server is used, real cache reads and writes happen during Anonymize,
-// and a separate inspection client observes the name via CLIENT LIST. No
-// replica-routing or multi-node topology is involved or claimed.
-func TestMakeByteAnalyzer_ValkeyConfigMutator_ClientNameObservable(t *testing.T) {
-	const clientName = "leakspok-analyzer-mutator-integration"
+	// The "client name observable on server" subtest proves end-to-end that a
+	// ClientName set through the public analyzer cache configuration path
+	// (analyzer.CacheOptions.ValkeyConfigMutator) is applied to the Valkey client
+	// used by the rule-matching cache. A disposable single-node Valkey server is
+	// used, real cache reads and writes happen during Anonymize, and a separate
+	// inspection client observes the name via CLIENT LIST. No replica-routing or
+	// multi-node topology is involved or claimed.
+	t.Run("client name observable on server", func(t *testing.T) {
+		const clientName = "leakspok-analyzer-mutator-integration"
 
-	addr := testutil.StartValkeyContainer(t)
-	ctx := context.Background()
+		addr := testutil.StartValkeyContainer(t)
+		ctx := context.Background()
 
-	ba, err := analyzer.MakeByteAnalyzer(ctx,
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		analyzer.RunnerOptions{
-			Cache: analyzer.CacheOptions{
-				Enabled:                 true,
-				TTL:                     30 * time.Second,
-				DisableInMemoryCache:    true,
-				RedisAddr:               addr,
-				RedisDisableClusterMode: true,
-				ValkeyConfigMutator: func(opt *valkey.ClientOption) {
-					opt.ClientName = clientName
+		ba, err := analyzer.MakeByteAnalyzer(ctx,
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			analyzer.RunnerOptions{
+				Cache: analyzer.CacheOptions{
+					Enabled:                 true,
+					TTL:                     30 * time.Second,
+					DisableInMemoryCache:    true,
+					RedisAddr:               addr,
+					RedisDisableClusterMode: true,
+					ValkeyConfigMutator: func(opt *valkey.ClientOption) {
+						opt.ClientName = clientName
+					},
+				},
+			})
+		require.NoError(t, err)
+		defer ba.Stop()
+
+		rules := []analyzer.Rule{
+			{
+				Name:    "email",
+				Matcher: pattern.EmailMatcher(),
+				Settings: analyzer.RuleSettings{
+					Strategy: analyzer.REDACT,
+					Redact:   &analyzer.RedactSettings{Placeholder: "[EMAIL]"},
 				},
 			},
-		})
-	require.NoError(t, err)
-	defer ba.Stop()
+		}
 
-	rules := []analyzer.Rule{
-		{
-			Name:    "email",
-			Matcher: pattern.EmailMatcher(),
-			Settings: analyzer.RuleSettings{
-				Strategy: analyzer.REDACT,
-				Redact:   &analyzer.RedactSettings{Placeholder: "[EMAIL]"},
-			},
-		},
-	}
+		// A plain input causes the runner to write negative results (SET) on the
+		// first pass and read them back (GET) on the second — real cache operations
+		// against the container through the public analyzer factory path.
+		input := []byte("no pii in this text")
 
-	// A plain input causes the runner to write negative results (SET) on the
-	// first pass and read them back (GET) on the second — real cache operations
-	// against the container through the public analyzer factory path.
-	input := []byte("no pii in this text")
+		out := &bytes.Buffer{}
+		details := ba.Anonymize(ctx, rules, out, input)
+		assert.False(t, details.HasFindings)
+		assert.Equal(t, string(input), out.String())
 
-	out := &bytes.Buffer{}
-	details := ba.Anonymize(ctx, rules, out, input)
-	assert.False(t, details.HasFindings)
-	assert.Equal(t, string(input), out.String())
+		out.Reset()
+		details = ba.Anonymize(ctx, rules, out, input)
+		assert.False(t, details.HasFindings)
+		assert.Equal(t, string(input), out.String())
 
-	out.Reset()
-	details = ba.Anonymize(ctx, rules, out, input)
-	assert.False(t, details.HasFindings)
-	assert.Equal(t, string(input), out.String())
-
-	testutil.AssertValkeyClientName(t, addr, clientName)
+		testutil.AssertValkeyClientName(t, addr, clientName)
+	})
 }
