@@ -14,6 +14,8 @@ import (
 	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
+	"github.com/valkey-io/valkey-go"
 	"go.uber.org/mock/gomock"
 )
 
@@ -556,4 +558,103 @@ func TestMakeByteAnalyzer_InMemoryCacheDisabledNoServer(t *testing.T) {
 		})
 	require.NoError(t, err)
 	assert.NotNil(t, ba)
+}
+
+// ─── ValkeyConfigMutator forwarding through the analyzer factory ────────────
+
+func startValkeyContainer(t *testing.T) string {
+	t.Helper()
+
+	ctx := context.Background()
+
+	container, err := tcredis.Run(ctx, "docker.io/valkey/valkey:8")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, container.Terminate(ctx))
+	})
+
+	host, err := container.Host(ctx)
+	require.NoError(t, err)
+
+	port, err := container.MappedPort(ctx, "6379")
+	require.NoError(t, err)
+
+	return host + ":" + port.Port()
+}
+
+func TestMakeByteAnalyzer_ValkeyConfigMutatorForwarded(t *testing.T) {
+	addr := startValkeyContainer(t)
+
+	var calls int
+	var observedInitAddress []string
+	var observedForceSingleClient bool
+
+	mutator := func(opt *valkey.ClientOption) {
+		calls++
+		observedInitAddress = opt.InitAddress
+		observedForceSingleClient = opt.ForceSingleClient
+	}
+
+	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		analyzer.RunnerOptions{
+			Cache: analyzer.CacheOptions{
+				Enabled:                 true,
+				RedisAddr:               addr,
+				RedisDisableClusterMode: true,
+				ValkeyConfigMutator:     mutator,
+			},
+		})
+	require.NoError(t, err)
+	assert.NotNil(t, ba)
+
+	// The callback is forwarded unchanged through buildCacheStore: invoked once
+	// with the mapped Leakspok defaults.
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, []string{addr}, observedInitAddress)
+	assert.True(t, observedForceSingleClient)
+}
+
+func TestMakeByteAnalyzer_ValkeyConfigMutatorNilPreservesDefaults(t *testing.T) {
+	addr := startValkeyContainer(t)
+
+	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		analyzer.RunnerOptions{
+			Cache: analyzer.CacheOptions{
+				Enabled:                 true,
+				RedisAddr:               addr,
+				RedisDisableClusterMode: true,
+			},
+		})
+	require.NoError(t, err)
+	assert.NotNil(t, ba)
+}
+
+func TestMakeByteAnalyzer_ValkeyConfigMutatorInvalidUpstreamPropagates(t *testing.T) {
+	var calls int
+
+	mutator := func(opt *valkey.ClientOption) {
+		calls++
+		opt.Standalone.EnableRedirect = true
+		opt.Standalone.ReplicaAddress = []string{"localhost:6379"}
+	}
+
+	ba, err := analyzer.MakeByteAnalyzer(context.Background(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		analyzer.RunnerOptions{
+			Cache: analyzer.CacheOptions{
+				Enabled:                 true,
+				RedisAddr:               "localhost:6379",
+				RedisDisableClusterMode: true,
+				ValkeyConfigMutator:     mutator,
+			},
+		})
+	require.Error(t, err)
+	assert.Equal(t, analyzer.ByteAnalyzer{}, ba)
+	assert.Equal(t, 1, calls)
+	assert.Contains(t, err.Error(), "failed to create cache")
+	assert.Contains(t, err.Error(), "failed to create valkey client")
+	assert.Contains(t, err.Error(), "EnableRedirect and ReplicaAddress cannot be used together")
 }
