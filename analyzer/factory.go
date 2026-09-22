@@ -26,6 +26,10 @@ type CacheOptions struct {
 	Enabled bool
 	// TTL is the time-to-live for cached entries. When 0, entries never expire.
 	TTL time.Duration
+	// TTLJitterPercentage is the fraction (e.g. 0.15 = ±15%) by which every
+	// effective TTL is randomized around TTL. Values <= 0 disable jitter.
+	// It applies to both the server SET PX write and the client-side cache TTL.
+	TTLJitterPercentage float64
 	// DisableInMemoryCache disables client-side caching (server-assisted CSC).
 	// When false (default), valkey-go uses DoCache for local caching with
 	// server-driven invalidation. Set to true to disable and always hit the server.
@@ -109,6 +113,7 @@ func buildCacheStore(ctx context.Context, options CacheOptions) (analyzercache.C
 
 	c, err := analyzercache.NewCacheStore(ctx, analyzercache.RuleMatchingCacheOptions{
 		CacheTTL:             options.TTL,
+		TTLJitterPercentage:  options.TTLJitterPercentage,
 		DisableInMemoryCache: options.DisableInMemoryCache,
 		ValkeyConfigMutator:  options.ValkeyConfigMutator,
 		Redis: analyzercache.RedisOptions{
