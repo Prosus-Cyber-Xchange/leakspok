@@ -18,6 +18,7 @@ route_unit: null
 - Build / typecheck: `go build ./...`
 - Context notes: Upstream artifacts `design.md` and `requirements/rule-matching-cache.md` are authoritative for why and what; this plan only records how. Key constraints from the repo: tests must live in external `_test` packages (testpackage linter), so the unexported coalescer is verified through the runners' public API; cache integration tests use `cachetesting.StartValkeyContainer` (testcontainers, skip under `-short`); strict golangci config via `task lint`; dependencies are vendored via `task vendor`. The breaking `NewSerialRulesRuner` signature change is pre-approved in the design and must update every call site listed in Task 3.
 - Quality notes: The coalescing call site exists in two runners by design — mitigated by one shared `singleflightCoalescer` implementation (thin call sites, accepted smell recorded in design.md). The serial runner receiving the full `RunnerOptions` while reading only `Cache.SingleflightEnabled` is also a recorded, accepted over-breadth. Cache stays computation-unaware; no `CacheStore` interface changes anywhere in this plan.
+- Re-plan note (2026-09-22): Task 4's original verbatim `singleflightCoalescer` was un-implementable — a value receiver on `do` copies the embedded `singleflight.Group` mutex and map, so concurrent callers never share a flight and `go vet` flags copylocks; the unchecked `res.Val.(bool)` assertion also fails `errcheck` (`check-type-assertions: true`). Amended to a pointer receiver with a checked assertion, made the once-constructed stored-pointer constructor explicit in Step 3, and added the vendored-file cosmetic-churn revert instruction.
 
 ## Tasks
 
@@ -95,56 +96,62 @@ route_unit: null
   - Created: `analyzer/singleflight_coalescer.go`, `analyzer/serial_runner_coalescing_test.go`, vendored `golang.org/x/sync/singleflight` via `task vendor`
   - Modified: `analyzer/serial_runner.go`, `go.mod`, `go.sum`, `vendor/modules.txt`
   - Deleted: none
+  - Note: `task vendor` may reformat many vendored files' doc-comment indentation (cosmetic whitespace churn from the local toolchain's gofmt). After vendoring, revert every `vendor/` file whose only diff is that cosmetic reformatting (keep them at their committed state), committing ONLY the changes this task needs: `go.mod`, `go.sum`, `vendor/modules.txt`, and the newly vendored `vendor/golang.org/x/sync/singleflight/` package. Do not hand-edit vendor file content.
 - Acceptance:
   - The unexported `singleflightCoalescer` exists exactly as specified below and the serial runner wraps only its match-and-save segment with it, keyed by `entity + ":" + data`, honoring requirement "Opt-in coalescing of identical concurrent miss computations" scenarios: burst of identical concurrent misses (one compute, one save), waiting caller cancels (waiter unblocks without computing), coalescing disabled (per-request), sequential bursts recompute (no memoization), and cached-hit short-circuit unchanged.
 - Steps:
   1. Create `analyzer/singleflight_coalescer.go` with the type verbatim (no design additions):
-     ```go
-     package analyzer
+   ```go
+   package analyzer
 
-     import (
-         "context"
+   import (
+       "context"
+       "fmt"
 
-         "golang.org/x/sync/singleflight"
-     )
+       "golang.org/x/sync/singleflight"
+   )
 
-     // singleflightCoalescer coalesces one computation per key across concurrent
-     // callers while enabled. Results are shared only while the call is in flight;
-     // the key is forgotten on completion so a later burst recomputes.
-     type singleflightCoalescer struct {
-         group   singleflight.Group
-         enabled bool
-     }
+   // singleflightCoalescer coalesces one computation per key across concurrent
+   // callers while enabled. Results are shared only while the call is in flight;
+   // the key is forgotten on completion so a later burst recomputes.
+   type singleflightCoalescer struct {
+       group   singleflight.Group
+       enabled bool
+   }
 
-     func newSingleflightCoalescer(enabled bool) singleflightCoalescer {
-         return singleflightCoalescer{enabled: enabled}
-     }
+   func newSingleflightCoalescer(enabled bool) *singleflightCoalescer {
+       return &singleflightCoalescer{enabled: enabled}
+   }
 
-     // do runs fn once per key among concurrent callers and shares its result.
-     // When disabled, fn runs once per caller. A caller whose context is
-     // cancelled while waiting returns ctx.Err() without running fn.
-     func (c singleflightCoalescer) do(ctx context.Context, key string, fn func() (bool, error)) (bool, error) {
-         if !c.enabled {
-             return fn()
-         }
+   // do runs fn once per key among concurrent callers and shares its result.
+   // When disabled, fn runs once per caller. A caller whose context is
+   // cancelled while waiting returns ctx.Err() without running fn.
+   func (c *singleflightCoalescer) do(ctx context.Context, key string, fn func() (bool, error)) (bool, error) {
+       if !c.enabled {
+           return fn()
+       }
 
-         ch := c.group.DoChan(key, func() (any, error) {
-             defer c.group.Forget(key)
-             matched, err := fn()
-             return matched, err
-         })
+       ch := c.group.DoChan(key, func() (any, error) {
+           defer c.group.Forget(key)
+           matched, err := fn()
+           return matched, err
+       })
 
-         select {
-         case res := <-ch:
-             return res.Val.(bool), res.Err
-         case <-ctx.Done():
-             return false, ctx.Err()
-         }
-     }
-     ```
+       select {
+       case res := <-ch:
+           matched, ok := res.Val.(bool)
+           if !ok {
+               return false, fmt.Errorf("singleflight coalescer: unexpected result type %T", res.Val)
+           }
+           return matched, res.Err
+       case <-ctx.Done():
+           return false, ctx.Err()
+       }
+   }
+   ```
   2. Write `analyzer/serial_runner_coalescing_test.go` (package `analyzer_test`). Define a small counting fake implementing `analyzercache.CacheStore` in the file: `GetMatch` always returns `ErrCacheNotFound`, `SaveMatch` records the save count per key (sync-protected) and returns a configurable error. Use a counting matcher built from `pattern.PatternFunc` (atomic counter) and a real `analyzer.Rule`. Write tests: (a) enabled, N=20 goroutines calling `Process` concurrently with the same data — matcher computed exactly once, saves exactly one, all return no match; (b) enabled, two sequential rounds — matcher count is two (no memoization); (c) disabled — N concurrent calls produce N computations; (d) hit short-circuit — a fake that returns a cached false match results in zero matcher calls; (e) cancellation — matcher blocks on a channel and signals entry, a second caller joins the flight, its context is cancelled, it returns `(Rule{}, false)` promptly while the blocked computation completes once for the leader. Run and watch the coalescing assertions fail against the current serial runner.
-  3. Wire the serial runner: construct the coalescer from `s.options.Cache.SingleflightEnabled`; build the key as `string(rule.Matcher.Entity()) + ":" + string(data)`; on the miss path, after the exception check, run the matcher and the conditional `SaveMatch(false)` inside `coalescer.do`, keeping the exception check outside the flight and keeping the existing `GetMatch` logging untouched. On a coalescer error, log with `ErrorContext` and continue to the next rule with no match — cancelled waiters therefore never compute.
-  4. Run `task vendor` to promote `golang.org/x/sync` to a direct requirement and vendor `singleflight`; commit the `go.mod`, `go.sum`, and `vendor/` changes with this task.
+   3. Wire the serial runner: construct the coalescer exactly once via `newSingleflightCoalescer(s.options.Cache.SingleflightEnabled)` and store the resulting `*singleflightCoalescer` on the `SerialRulesRunner` struct as a field, shared across all `Process` calls — the pointer receiver requires one shared instance, never a per-call copy. Build the key as `string(rule.Matcher.Entity()) + ":" + string(data)`; on the miss path, after the exception check, run the matcher and the conditional `SaveMatch(false)` inside `coalescer.do`, keeping the exception check outside the flight and keeping the existing `GetMatch` logging untouched. On a coalescer error, log with `ErrorContext` and continue to the next rule with no match — cancelled waiters therefore never compute.
+   4. Run `task vendor` to promote `golang.org/x/sync` to a direct requirement and vendor `singleflight`. After `task vendor`, revert every `vendor/` file whose only diff is cosmetic whitespace reformatting (doc-comment indentation churn from the local toolchain's gofmt), keeping them at their committed state; commit ONLY the changes this task needs: `go.mod`, `go.sum`, `vendor/modules.txt`, and the newly vendored `vendor/golang.org/x/sync/singleflight/` package. Do not hand-edit vendor file content.
   5. Run `go test -race -count=1 ./analyzer/...` — expect green.
 - Verify: `go test -race -count=1 ./analyzer/...` → all pass, new coalescing tests included; `task lint` → clean.
 - Commit: `feat(analyzer): coalesce serial runner cache misses with singleflight`
