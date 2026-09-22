@@ -1,7 +1,7 @@
 ---
 artifact: design
 change: 2026-09-22-cache-singleflight-ttl-jitter
-status: approved
+status: draft
 created: 2026-09-22
 author: OpenCode
 decision: accepted
