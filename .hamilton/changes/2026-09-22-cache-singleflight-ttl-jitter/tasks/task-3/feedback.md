@@ -22,3 +22,17 @@ Verdict: changes-requested
 ### Suggestions
 
 - None.
+
+## Pass 2 — 2026-09-22
+
+Base: ed1aaf8a5f50d12889e00002905af68626e1a97f
+Head: fad32242f02d9484bbca824c6a6b7f563436d999
+Verdict: approved
+
+### Blocking
+
+- None.
+
+### Suggestions
+
+- [README.md:82, README.md:120] Verified coverage: both snippets now call the three-argument constructor exactly as Pass 1 prescribed, the full suite is green under `go test -race -count=1 ./...` (all packages), and `SingleflightEnabled` is confirmed defined-but-unread (grep shows it only in `analyzer/factory.go`), preserving the no-behavior-change criterion.
