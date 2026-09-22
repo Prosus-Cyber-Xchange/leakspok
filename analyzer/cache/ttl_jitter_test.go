@@ -17,9 +17,14 @@ import (
 // TestRuleMatchingCache_TTLJitter_ServerWriteInBand verifies that with a jitter
 // percentage configured, each negative-result save issues SET PX with an
 // effective TTL inside [base*(1-P), base*(1+P)] and that jitter is actually
-// applied: across several writes, at least one PTTL must deviate from the base
-// TTL. Against the fixed-TTL implementation all PTTLs equal the base, so the
-// spread assertion fails before jitter exists.
+// applied: across several writes, at least one effective TTL must deviate from
+// the base TTL. Against the fixed-TTL implementation all effective TTLs equal
+// the base, so the spread assertion fails before jitter exists.
+//
+// PTTL reports the *remaining* TTL, which only decays, so each reading is
+// compensated with the time elapsed since its save before the band comparison:
+// pttl + elapsed approximates the TTL set at write time and is immune to
+// ms-scale decay between write and read.
 func TestRuleMatchingCache_TTLJitter_ServerWriteInBand(t *testing.T) {
 	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
@@ -41,9 +46,11 @@ func TestRuleMatchingCache_TTLJitter_ServerWriteInBand(t *testing.T) {
 	require.NoError(t, err)
 
 	data := make([][]byte, keys)
+	savedAt := make([]time.Time, keys)
 	for i := range data {
 		data[i] = []byte(fmt.Sprintf("jitter-no-match-%02d@example.com", i))
 		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data[i], false))
+		savedAt[i] = time.Now()
 	}
 
 	inspector, err := valkey.NewClient(valkey.ClientOption{
@@ -56,26 +63,35 @@ func TestRuleMatchingCache_TTLJitter_ServerWriteInBand(t *testing.T) {
 	baseMs := float64(base / time.Millisecond)
 	lower := baseMs * (1 - jitter)
 	upper := baseMs * (1 + jitter)
+	// bandSlackMs absorbs PTTL's integer-ms rounding and the client-side
+	// measurement lag between the save and the PTTL read; the ±15% band is
+	// 3000 ms wide, so a few ms of slack does not weaken the band assertion.
+	const bandSlackMs = 5.0
 
 	spread := false
-	for _, d := range data {
+	for i, d := range data {
 		key := string(pattern.EntityEmail) + ":" + string(d)
 		pttl, pttlErr := inspector.Do(ctx, inspector.B().Pttl().Key(key).Build()).ToInt64()
 		require.NoError(t, pttlErr)
 
-		assert.GreaterOrEqual(t, float64(pttl), lower, "key %q PTTL below band", key)
-		assert.LessOrEqual(t, float64(pttl), upper, "key %q PTTL above band", key)
-		if deviated := pttl > int64(baseMs)+50 || pttl < int64(baseMs)-50; deviated {
+		elapsedMs := float64(time.Since(savedAt[i])) / float64(time.Millisecond)
+		effectiveMs := float64(pttl) + elapsedMs
+
+		assert.GreaterOrEqual(t, effectiveMs, lower-bandSlackMs, "key %q effective TTL below band", key)
+		assert.LessOrEqual(t, effectiveMs, upper+bandSlackMs, "key %q effective TTL above band", key)
+		if deviated := effectiveMs > baseMs+50 || effectiveMs < baseMs-50; deviated {
 			spread = true
 		}
 	}
 
-	assert.True(t, spread, "expected at least one jittered PTTL to deviate from the base TTL")
+	assert.True(t, spread, "expected at least one jittered effective TTL to deviate from the base TTL")
 }
 
 // TestRuleMatchingCache_TTLJitter_ZeroPreservesBaseTTL verifies that without
-// jitter (the zero value), the server-side PTTL equals the base TTL within a
-// small millisecond tolerance, exactly as before jitter existed.
+// jitter (the zero value), the server-side effective TTL equals the base TTL
+// within a small millisecond tolerance, exactly as before jitter existed. As
+// with the in-band test, the remaining TTL read is compensated with the time
+// elapsed since the save so ms-scale decay cannot push it below the base.
 func TestRuleMatchingCache_TTLJitter_ZeroPreservesBaseTTL(t *testing.T) {
 	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
@@ -95,6 +111,7 @@ func TestRuleMatchingCache_TTLJitter_ZeroPreservesBaseTTL(t *testing.T) {
 
 	data := []byte("zero-jitter@example.com")
 	require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data, false))
+	savedAt := time.Now()
 
 	inspector, err := valkey.NewClient(valkey.ClientOption{
 		InitAddress:       []string{addr},
@@ -107,8 +124,10 @@ func TestRuleMatchingCache_TTLJitter_ZeroPreservesBaseTTL(t *testing.T) {
 	pttl, pttlErr := inspector.Do(ctx, inspector.B().Pttl().Key(key).Build()).ToInt64()
 	require.NoError(t, pttlErr)
 
+	elapsedMs := float64(time.Since(savedAt)) / float64(time.Millisecond)
+
 	const toleranceMs = 200
-	assert.InDelta(t, float64(base/time.Millisecond), float64(pttl), toleranceMs, "PTTL must equal the base TTL without jitter")
+	assert.InDelta(t, float64(base/time.Millisecond), float64(pttl)+elapsedMs, toleranceMs, "effective TTL must equal the base TTL without jitter")
 }
 
 // TestRuleMatchingCache_TTLJitter_NoExpiryUnaffected verifies that with
