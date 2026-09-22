@@ -95,7 +95,7 @@ func TestSerialRulesRunner_CoalescesConcurrentMisses(t *testing.T) {
 		Matcher: burstMatcher,
 	}
 	runner := newSerialRunnerWithCache(analyzer.RunnerOptions{
-		Cache: analyzer.CacheOptions{SingleflightEnabled: true},
+		Cache: analyzer.CacheOptions{Enabled: true, SingleflightEnabled: true},
 	}, cache)
 
 	data := []byte("identical data")
@@ -139,7 +139,7 @@ func TestSerialRulesRunner_CoalescingDoesNotMemoizeAcrossBursts(t *testing.T) {
 		Matcher: countingMatcher(&computes),
 	}
 	runner := newSerialRunnerWithCache(analyzer.RunnerOptions{
-		Cache: analyzer.CacheOptions{SingleflightEnabled: true},
+		Cache: analyzer.CacheOptions{Enabled: true, SingleflightEnabled: true},
 	}, cache)
 
 	data := []byte("identical data")
@@ -180,6 +180,69 @@ func TestSerialRulesRunner_CoalescingDisabledComputesPerCall(t *testing.T) {
 	assert.Equal(t, callers, cache.saveCount(), "with coalescing disabled each caller must save")
 }
 
+// TestSerialRulesRunner_CoalescingIgnoredWhenCacheDisabled pins down the
+// requirement scenario "cache backend disabled (noop cache)": the flag is
+// ignored when caching is disabled, so each miss computes independently even
+// with SingleflightEnabled set.
+func TestSerialRulesRunner_CoalescingIgnoredWhenCacheDisabled(t *testing.T) {
+	const callers = 20
+
+	t.Run("noop cache backend", func(t *testing.T) {
+		// Mirrors the factory path: Enabled=false installs the noop cache, so
+		// SingleflightEnabled must be ignored end to end.
+		var computes atomic.Int32
+		rule := analyzer.Rule{
+			Name:    "counting-rule",
+			Matcher: countingMatcher(&computes),
+		}
+		runner := newSerialRunnerWithCache(analyzer.RunnerOptions{
+			Cache: analyzer.CacheOptions{Enabled: false, SingleflightEnabled: true},
+		}, analyzercache.NewNoopRuleMatchingCache())
+
+		data := []byte("identical data")
+		var wg sync.WaitGroup
+		for range callers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				runner.Process(context.Background(), []analyzer.Rule{rule}, data)
+			}()
+		}
+		wg.Wait()
+
+		assert.Equal(t, int32(callers), computes.Load(),
+			"with the cache backend disabled, no coalescing may occur and each caller must compute")
+	})
+
+	t.Run("enabled flag false", func(t *testing.T) {
+		// Direct contract check: Enabled=false with SingleflightEnabled=true
+		// behaves exactly like the existing disabled-mode test.
+		cache := &countingCache{}
+		var computes atomic.Int32
+		rule := analyzer.Rule{
+			Name:    "counting-rule",
+			Matcher: countingMatcher(&computes),
+		}
+		runner := newSerialRunnerWithCache(analyzer.RunnerOptions{
+			Cache: analyzer.CacheOptions{Enabled: false, SingleflightEnabled: true},
+		}, cache)
+
+		data := []byte("identical data")
+		var wg sync.WaitGroup
+		for range callers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				runner.Process(context.Background(), []analyzer.Rule{rule}, data)
+			}()
+		}
+		wg.Wait()
+
+		assert.Equal(t, int32(callers), computes.Load(), "with coalescing ignored each caller must compute")
+		assert.Equal(t, callers, cache.saveCount(), "with coalescing ignored each caller must save")
+	})
+}
+
 func TestSerialRulesRunner_CoalescingCachedHitSkipsMatcher(t *testing.T) {
 	var computes atomic.Int32
 	rule := analyzer.Rule{
@@ -187,7 +250,7 @@ func TestSerialRulesRunner_CoalescingCachedHitSkipsMatcher(t *testing.T) {
 		Matcher: countingMatcher(&computes),
 	}
 	runner := newSerialRunnerWithCache(analyzer.RunnerOptions{
-		Cache: analyzer.CacheOptions{SingleflightEnabled: true},
+		Cache: analyzer.CacheOptions{Enabled: true, SingleflightEnabled: true},
 	}, cachedFalseCache{})
 
 	matched, found := runner.Process(context.Background(), []analyzer.Rule{rule}, []byte("cached data"))
@@ -215,7 +278,7 @@ func TestSerialRulesRunner_CoalescingCancelledWaiterSkipsCompute(t *testing.T) {
 		Matcher: blockingMatcher,
 	}
 	runner := newSerialRunnerWithCache(analyzer.RunnerOptions{
-		Cache: analyzer.CacheOptions{SingleflightEnabled: true},
+		Cache: analyzer.CacheOptions{Enabled: true, SingleflightEnabled: true},
 	}, cache)
 
 	data := []byte("identical data")
@@ -275,7 +338,7 @@ func TestSerialRulesRunner_CoalescingSaveErrorIsLoggedAndContinues(t *testing.T)
 		Matcher: countingMatcher(&computes),
 	}
 	runner := newSerialRunnerWithCache(analyzer.RunnerOptions{
-		Cache: analyzer.CacheOptions{SingleflightEnabled: true},
+		Cache: analyzer.CacheOptions{Enabled: true, SingleflightEnabled: true},
 	}, cache)
 
 	matched, found := runner.Process(context.Background(), []analyzer.Rule{rule}, []byte("data"))

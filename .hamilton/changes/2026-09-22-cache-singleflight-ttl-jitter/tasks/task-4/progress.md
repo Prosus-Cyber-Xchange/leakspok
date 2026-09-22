@@ -73,4 +73,34 @@ Outcome: done
 - The burst test's blocking matcher deviates from a naive instant-counting matcher because an instant flight closes before 20 racing goroutines join, fragmenting the burst (empirically 5 computes). Holding the flight open until the burst joins is the only way to deterministically assert the requirement's "compute function runs exactly once" under the race detector; the assertion itself is unchanged.
 - `matchAndSave` was extracted from `Process` to keep gocognit ≤ 20 (inline closure pushed it to 21 — a new lint finding this task would otherwise introduce). Behavior is identical; the plan's requirement that matcher + conditional save run inside `coalescer.do` is preserved (the helper is the `do` callback).
 
+## Attempt 3 — 2026-09-22
+
+Outcome: done
+
+### Changed paths
+
+- Created: none
+- Modified:
+  - `analyzer/serial_runner.go` — `NewSerialRulesRuner` now gates coalescing on the cache backend: `newSingleflightCoalescer(options.Cache.Enabled && options.Cache.SingleflightEnabled)` (with a doc comment explaining the noop-cache case), per feedback Pass 1's blocking finding. The coalescer type, key shape, miss-path wiring, and log-and-continue handling are unchanged.
+  - `analyzer/serial_runner_coalescing_test.go` — added `TestSerialRulesRunner_CoalescingIgnoredWhenCacheDisabled` with two subtests: (a) "noop cache backend" passes `analyzercache.NewNoopRuleMatchingCache()` with `SingleflightEnabled: true` (mirrors the factory path where `Enabled=false` installs the noop cache) and asserts 20 concurrent calls produce 20 computes; (b) "enabled flag false" passes `Enabled: false, SingleflightEnabled: true` with the counting cache and asserts 20 computes and 20 saves, consistent with the existing disabled-mode test. The five coalescing-ON tests now set `Enabled: true` alongside `SingleflightEnabled: true` so they exercise the flight under the new gate.
+- Deleted: none
+
+### Verification
+
+- `go test -race -count=1 ./analyzer/...` → PASS (all packages: `analyzer` and `analyzer/cache`). All six coalescing tests plus the two new disabled-backend subtests pass.
+- Pre-fix proof (gate reverted, new test kept): `go test -race -count=1 -run 'TestSerialRulesRunner_CoalescingIgnoredWhenCacheDisabled' ./analyzer/` → FAIL as expected — noop-cache subtest observed **2 computes instead of 20**, enabled-flag-false subtest observed **7 computes instead of 20** — proving the test pins the bug.
+- `go test -race -count=1 ./...` → PASS (root, analyzer, analyzer/cache, monitoring, pattern; examples carry no tests). Ran with `DOCKER_HOST=unix:///Users/caio.cavalcante/.colima/default/docker.sock TESTCONTAINERS_RYUK_DISABLED=true` (testcontainers requires colima's docker socket — same environmental requirement documented by Tasks 3–4). The `ld:` malformed `LC_DYSYMTAB` warnings are benign darwin linker warnings from race-instrumented test binaries, present throughout this worktree's test runs.
+- `go test -race -count=5 -run 'TestSerialRulesRunner_CoalescingIgnoredWhenCacheDisabled|TestSerialRulesRunner_CoalescesConcurrentMisses' ./analyzer/` → PASS 5/5 (deterministic).
+- `go build ./...` → success.
+- `task lint` → 11 findings, all the pre-existing baseline documented by Task 3 / Attempt 2 (outside this task's lane: `analyzer/coverage_gap_test.go`, `analyzer/byte_analyzer_test.go`, `analyzer/cache/store.go`, `analyzer/cache/tracer.go`, `pattern/matcher_test.go`, `monitoring/tracing_test.go`). Zero findings in `analyzer/serial_runner.go`, `analyzer/singleflight_coalescer.go`, or `analyzer/serial_runner_coalescing_test.go`.
+
+### Notes
+
+- **Deviation (feedback-required bounded fix)**: plan.md Step 3's literal `newSingleflightCoalescer(s.options.Cache.SingleflightEnabled)` is amended to `newSingleflightCoalescer(options.Cache.Enabled && options.Cache.SingleflightEnabled)` per feedback Pass 1 (verdict changes-requested). This satisfies requirement scenario "cache backend disabled (noop cache): no coalescing occurs" (requirements/rule-matching-cache.md), design.md "Opt-in flag shape" and its error-handling row "Cache backend disabled | Factory installs the noop cache and ignores the flag; no coalescing", and the `CacheOptions.SingleflightEnabled` doc contract "It is ignored when Enabled is false" (analyzer/factory.go). It is the only deviation; everything else in the task's Steps is unchanged.
+- With the gate in place, the five coalescing-ON tests were updated to set `Enabled: true` — a test-only consequence of the corrected semantics, not a behavior change in the runner's miss path.
+- Feedback Pass 1's optional (non-blocking) suggestion to extend the save-error test to multiple waiters sharing one save error was considered and deliberately not applied, keeping this correction bounded to the blocking fix; the single-caller save-error test still passes and the shared-error semantics remain pinned by the requirement text.
+- Checkpoint `tasks/task-4/.base` (`baab2c2f041a09b72a37b2a51375bd17a39a237e`) validated (resolves, is an ancestor of current `HEAD` and of feedback Head `db948ff551d43ab2ac93d17d80eebc47e4da3e65`, precedes the first attempt) and preserved untracked; the working tree had no pre-existing task-owned changes before this attempt.
+- The comment block added to `NewSerialRulesRuner` initially produced a `gci` "File is not properly formatted" finding (struct-literal field alignment); resolved with `gofmt -w` and re-verified lint-clean for this file.
+
+
 

@@ -23,10 +23,13 @@ type SerialRulesRunner struct {
 // logger, runner options, and cache store.
 func NewSerialRulesRuner(logger *slog.Logger, options RunnerOptions, cache analyzercache.CacheStore) SerialRulesRunner {
 	return SerialRulesRunner{
-		logger:    logger,
-		options:   options,
-		cache:     cache,
-		coalescer: newSingleflightCoalescer(options.Cache.SingleflightEnabled),
+		logger:  logger,
+		options: options,
+		cache:   cache,
+		// Coalescing is a cache-miss behavior: it only takes effect when the
+		// cache backend is enabled. With the noop cache (Enabled=false) the
+		// flag is ignored and every miss computes independently.
+		coalescer: newSingleflightCoalescer(options.Cache.Enabled && options.Cache.SingleflightEnabled),
 	}
 }
 
