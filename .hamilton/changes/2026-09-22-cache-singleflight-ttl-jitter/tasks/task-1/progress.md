@@ -25,7 +25,7 @@ decision: accepted
   - The `cacheTTL == 0` guards in `SaveMatch`/`GetMatch` were left unchanged, so the no-expiry path applies no jitter as required.
   - Testcontainers integration tests require `DOCKER_HOST=unix:///Users/caio.cavalcante/.colima/default/docker.sock` and `TESTCONTAINERS_RYUK_DISABLED=true` in this environment (colima; the testcontainers reaper could not start). This is a pre-existing environment characteristic affecting all container-backed cache tests, not a code change.
 
-## Attempt 2 — 2026-09-22 (correction after changes-requested feedback)
+## Attempt 2 — 2026-09-22
 
 - Outcome: done
 - Created: none
@@ -38,6 +38,7 @@ decision: accepted
   - `go build ./...` — success
   - `task lint` — the 11 remaining findings are unchanged and pre-existing at the task checkpoint (`0e9b630`) in files outside this task's scope (`store.go`, `tracer.go`, `coverage_gap_test.go`, `byte_analyzer_test.go`, `matcher_test.go`, `tracing_test.go`), verified via `git diff 0e9b630..HEAD` on those files being empty; no findings in task-owned files
 - Notes:
+  - Context: correction after changes-requested feedback.
   - Blocking feedback fix: `TestRuleMatchingCache_TTLJitter_ServerWriteInBand` no longer asserts the band against raw PTTL (which only decays). Each save now records `savedAt`, and the assertion compares `pttl + elapsed` (effective TTL at write time) against `[base*(1-P), base*(1+P)]`, with a 5 ms slack (`bandSlackMs`) absorbing PTTL's integer-ms rounding and client-side measurement lag — negligible against the 3000 ms-wide band. The `assert.True(spread)` regression probe is intact, now evaluated against the decay-compensated value so a fixed-TTL implementation cannot spuriously look "spread" from read lag.
   - Suggestion applied: `TestRuleMatchingCache_TTLJitter_ZeroPreservesBaseTTL` uses the same `pttl + elapsed` compensation for consistency, keeping its 200 ms tolerance.
   - Plan step 2's raw-PTTL example was recorded as inherently decay-racy in feedback (Pass 1); plan.md was not edited per the feedback note.

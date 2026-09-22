@@ -11,7 +11,7 @@ decision: accepted
 
 ## Attempt 1 — 2026-09-22
 
-Outcome: done
+- Outcome: done
 
 ### Changed paths
 
@@ -41,7 +41,7 @@ Outcome: done
 
 ## Attempt 2 — 2026-09-22
 
-Outcome: done
+- Outcome: done
 
 ### Changed paths
 

@@ -2,7 +2,7 @@
 artifact: task-progress
 change: 2026-09-22-cache-singleflight-ttl-jitter
 task: 5
-status: pending
+status: done
 updated: 2026-09-22
 decision: accepted
 ---
@@ -11,7 +11,7 @@ decision: accepted
 
 ## Attempt 1 — 2026-09-22
 
-- **Outcome**: done
+- Outcome: done
 - **Created paths**:
   - `analyzer/concurrent_runner_coalescing_test.go`
 - **Modified paths**:
