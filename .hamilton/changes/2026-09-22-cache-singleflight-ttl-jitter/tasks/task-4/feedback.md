@@ -4,7 +4,7 @@ change: 2026-09-22-cache-singleflight-ttl-jitter
 task: 4
 created: 2026-09-22
 status: open
-decision: rejected
+decision: accepted
 ---
 
 # Code Feedback: Task 4 — Coalesce serial-runner cache misses with singleflight
@@ -22,3 +22,18 @@ Verdict: changes-requested
 ### Suggestions
 
 - [analyzer/serial_runner_coalescing_test.go] The coalesced-save-error scenario is pinned only for a single caller (`TestSerialRulesRunner_CoalescingSaveErrorIsLoggedAndContinues`); the requirement that "every caller still receives the computed false result together with the save error" relies on upstream `DoChan` sharing, which is untested here. A multi-waiter variant asserting every caller receives the shared save error and reports no-match would pin that scenario end to end.
+
+## Pass 2 — 2026-09-22
+
+Base: baab2c2f041a09b72a37b2a51375bd17a39a237e
+Head: cae34f5feb10b5ceaa8d159dedf84e4f75ea58dd
+Verdict: approved
+
+### Blocking
+
+- None.
+
+### Suggestions
+
+- [analyzer/serial_runner_coalescing_test.go] The "coalesced save fails" requirement scenario is pinned by a single caller only (`TestSerialRulesRunner_CoalescingSaveErrorIsLoggedAndContinues`); the "every caller still receives the computed false result together with the save error" half still relies on upstream `DoChan` sharing. A multi-waiter variant asserting every caller reports no-match while exactly one compute and one save occurred would pin the shared-error path end to end.
+- [analyzer/serial_runner_coalescing_test.go] The "positive match remains uncached" requirement scenario is exercised only indirectly (no test matcher ever returns true), so the no-save-on-match branch of `matchAndSave` is untested in the coalesced path. A test whose matcher returns true would assert waiters receive the shared match result while zero saves are issued.
