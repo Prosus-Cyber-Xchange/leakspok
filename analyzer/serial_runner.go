@@ -13,15 +13,18 @@ import (
 //
 // SerialRulesRunner is safe for concurrent use.
 type SerialRulesRunner struct {
-	logger *slog.Logger
-	cache  analyzercache.CacheStore
+	logger  *slog.Logger
+	options RunnerOptions
+	cache   analyzercache.CacheStore
 }
 
-// NewSerialRulesRuner creates a new instance of SerialRulesRunner with the provided logger and cache store.
-func NewSerialRulesRuner(logger *slog.Logger, cache analyzercache.CacheStore) SerialRulesRunner {
+// NewSerialRulesRuner creates a new instance of SerialRulesRunner with the provided
+// logger, runner options, and cache store.
+func NewSerialRulesRuner(logger *slog.Logger, options RunnerOptions, cache analyzercache.CacheStore) SerialRulesRunner {
 	return SerialRulesRunner{
-		logger: logger,
-		cache:  cache,
+		logger:  logger,
+		options: options,
+		cache:   cache,
 	}
 }
 

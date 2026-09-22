@@ -18,7 +18,7 @@ func TestSerialRulesRunner_ProcessSingleMatchingRule(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rule := analyzer.Rule{
 		Name:    "matching-rule",
@@ -35,7 +35,7 @@ func TestSerialRulesRunner_ProcessNoMatchingRule(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rule := analyzer.Rule{
 		Name:    "non-matching-rule",
@@ -52,7 +52,7 @@ func TestSerialRulesRunner_ProcessMultipleRulesFirstMatches(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rules := []analyzer.Rule{
 		{
@@ -76,7 +76,7 @@ func TestSerialRulesRunner_ProcessMultipleRulesSecondMatches(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rules := []analyzer.Rule{
 		{
@@ -96,7 +96,7 @@ func TestSerialRulesRunner_ProcessMultipleRulesSecondMatches(t *testing.T) {
 }
 
 func TestSerialRulesRunner_ProcessEmptyRulesList(t *testing.T) {
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	matchedRule, found := runner.Process(t.Context(), []analyzer.Rule{}, []byte("test data"))
 
@@ -108,7 +108,7 @@ func TestSerialRulesRunner_ProcessWithEmptyData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rule := analyzer.Rule{
 		Name:    "rule",
@@ -125,7 +125,7 @@ func TestSerialRulesRunner_ProcessWithNilData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rule := analyzer.Rule{
 		Name:    "rule",
@@ -142,7 +142,7 @@ func TestSerialRulesRunner_ProcessLargeRuleSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	// Create a large set of non-matching rules
 	rules := make([]analyzer.Rule, 100)
@@ -168,7 +168,7 @@ func TestSerialRulesRunner_ProcessPreservesRuleData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	originalRule := analyzer.Rule{
 		Name:    "test-rule",
@@ -193,7 +193,7 @@ func TestSerialRulesRunner_ProcessMultipleCallsIndependent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rule1 := analyzer.Rule{
 		Name:    "rule-1",
@@ -225,7 +225,7 @@ func TestSerialRulesRunner_ProcessReturnsEmptyRuleOnNoMatch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rules := []analyzer.Rule{
 		{
@@ -250,7 +250,7 @@ func TestSerialRulesRunner_ProcessDisabledRule(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rules := []analyzer.Rule{
 		{
@@ -275,7 +275,7 @@ func TestSerialRulesRunner_ProcessAllDisabledRules(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rules := []analyzer.Rule{
 		{
@@ -300,7 +300,7 @@ func TestSerialRulesRunner_ProcessWithException(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	exceptionMatcher := newExceptionMatcher(ctrl, "safe@company.com")
 
@@ -326,7 +326,7 @@ func TestSerialRulesRunner_ProcessExceptionDoesNotMatch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	exceptionMatcher := newExceptionMatcher(ctrl, "safe@company.com")
 
@@ -352,7 +352,7 @@ func TestSerialRulesRunner_ProcessMultipleExceptions(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rule := analyzer.Rule{
 		Name:    "email-rule",
@@ -387,7 +387,7 @@ func TestSerialRulesRunner_ProcessDeterministicOrder(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rules := []analyzer.Rule{
 		{
@@ -413,7 +413,7 @@ func TestSerialRulesRunner_ProcessDeterministicOrder(t *testing.T) {
 }
 
 func TestSerialRulesRunner_Stop(_ *testing.T) {
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	// Stop should be a no-op for serial runner
 	runner.Stop()
@@ -424,7 +424,7 @@ func TestSerialRulesRunner_ProcessWithContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rule := analyzer.Rule{
 		Name:    "rule",
@@ -444,7 +444,7 @@ func TestSerialRulesRunner_ProcessReturnsFirstMatchRegardlessOfOrder(t *testing.
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	// Mix of matching and non-matching rules
 	rules := []analyzer.Rule{
@@ -481,7 +481,7 @@ func TestSerialRulesRunner_ProcessDisabledAndEnabledMix(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rules := []analyzer.Rule{
 		{
@@ -515,7 +515,7 @@ func TestSerialRulesRunner_ProcessExceptionAndDisabledCombined(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	exceptionMatcher := newExceptionMatcher(ctrl, "safe@company.com")
 
@@ -556,7 +556,7 @@ func TestSerialRulesRunner_ConcurrentProcessCalls(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rule := analyzer.Rule{
 		Name:    "matching-rule",
@@ -590,7 +590,7 @@ func TestSerialRulesRunner_ConcurrentMixedProcessCalls(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	matchingRule := analyzer.Rule{Name: "matching", Matcher: newMatchingMatcher(ctrl)}
 	nonMatchingRule := analyzer.Rule{Name: "non-matching", Matcher: newNonMatchingMatcher(ctrl)}
@@ -626,7 +626,7 @@ func TestSerialRulesRunner_ProcessMultipleCalls(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
 	rule := analyzer.Rule{
 		Name:    "rule",

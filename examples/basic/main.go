@@ -35,7 +35,7 @@ func main() {
 	//    The SerialRulesRunner evaluates rules one at a time — suitable for
 	//    most workloads. Pass a discard logger or slog.Default().
 	logger := slog.Default()
-	runner := analyzer.NewSerialRulesRuner(logger, analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(logger, analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 	sa := analyzer.NewStringAnalyzer(logger, runner)
 
 	// 3. Define the input to scan.

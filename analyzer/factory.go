@@ -30,6 +30,10 @@ type CacheOptions struct {
 	// effective TTL is randomized around TTL. Values <= 0 disable jitter.
 	// It applies to both the server SET PX write and the client-side cache TTL.
 	TTLJitterPercentage float64
+	// SingleflightEnabled, when true, coalesces identical concurrent cache
+	// misses for the same entity+data key into one computation per key.
+	// It is ignored when Enabled is false.
+	SingleflightEnabled bool
 	// DisableInMemoryCache disables client-side caching (server-assisted CSC).
 	// When false (default), valkey-go uses DoCache for local caching with
 	// server-driven invalidation. Set to true to disable and always hit the server.
@@ -207,7 +211,7 @@ func MakeByteAnalyzer(ctx context.Context, logger *slog.Logger, options RunnerOp
 	if concurrency.Enabled && concurrency.ConcurrentRuleProcessing {
 		runner = NewConcurrentRulesRunner(logger, options, cache, runnerPool)
 	} else {
-		runner = NewSerialRulesRuner(logger, cache)
+		runner = NewSerialRulesRuner(logger, options, cache)
 	}
 
 	ba := NewByteAnalyzer(logger, runner)
@@ -246,7 +250,7 @@ func MakeStringAnalyzer(ctx context.Context, logger *slog.Logger, options Runner
 	if concurrency.Enabled && concurrency.ConcurrentRuleProcessing {
 		runner = NewConcurrentRulesRunner(logger, options, cache, runnerPool)
 	} else {
-		runner = NewSerialRulesRuner(logger, cache)
+		runner = NewSerialRulesRuner(logger, options, cache)
 	}
 
 	return NewStringAnalyzer(logger, runner), nil

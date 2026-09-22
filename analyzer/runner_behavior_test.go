@@ -21,7 +21,7 @@ type RunnerFactory func(*gomock.Controller) analyzer.RuleRunner
 
 // newSerialRunnerFactory creates a factory for SerialRulesRunner
 func newSerialRunnerFactory(_ *gomock.Controller) analyzer.RuleRunner {
-	return analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzercache.NewNoopRuleMatchingCache())
+	return analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 }
 
 // newConcurrentRunnerFactory creates a factory for ConcurrentRulesRunner with a pool of 4 workers.

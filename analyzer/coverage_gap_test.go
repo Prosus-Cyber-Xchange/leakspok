@@ -253,6 +253,7 @@ func TestSerialRulesRunner_ProcessCachePositiveHit(t *testing.T) {
 
 	runner := analyzer.NewSerialRulesRuner(
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		analyzer.RunnerOptions{},
 		cache,
 	)
 
@@ -282,6 +283,7 @@ func TestSerialRulesRunner_ProcessCacheNegativeHitIsSkipped(t *testing.T) {
 
 	runner := analyzer.NewSerialRulesRuner(
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		analyzer.RunnerOptions{},
 		cache,
 	)
 

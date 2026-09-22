@@ -946,7 +946,7 @@ func TestByteAnalyzer_AnonymizeConcurrentTokenProcessing(t *testing.T) {
 
 func BenchmarkByteAnalyzerAnonymize(b *testing.B) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	runner := analyzer.NewSerialRulesRuner(logger, analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(logger, analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 	ba := analyzer.NewByteAnalyzer(logger, runner)
 
 	// Realistic input containing various PII types
@@ -977,7 +977,7 @@ func BenchmarkByteAnalyzerAnonymize(b *testing.B) {
 
 func BenchmarkByteAnalyzerAnonymizeLargeInput(b *testing.B) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	runner := analyzer.NewSerialRulesRuner(logger, analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(logger, analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 	ba := analyzer.NewByteAnalyzer(logger, runner)
 
 	// Build a ~5KB input with repeated PII patterns
