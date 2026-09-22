@@ -19,10 +19,11 @@ type resultItem struct {
 // Multiple goroutines may call Process concurrently. Stop releases the pool;
 // subsequent Process calls return immediately with no match.
 type ConcurrentRulesRunner struct {
-	logger  *slog.Logger
-	cache   analyzercache.CacheStore
-	options RunnerOptions
-	pool    WorkerPool
+	logger    *slog.Logger
+	cache     analyzercache.CacheStore
+	options   RunnerOptions
+	pool      WorkerPool
+	coalescer *singleflightCoalescer
 }
 
 // NewConcurrentRulesRunner creates a ConcurrentRulesRunner backed by the given pool.
@@ -33,6 +34,10 @@ func NewConcurrentRulesRunner(logger *slog.Logger, options RunnerOptions, cache 
 		cache:   cache,
 		options: options,
 		pool:    pool,
+		// Coalescing is a cache-miss behavior: it only takes effect when the
+		// cache backend is enabled. With the noop cache (Enabled=false) the
+		// flag is ignored and every miss computes independently.
+		coalescer: newSingleflightCoalescer(options.Cache.Enabled && options.Cache.SingleflightEnabled),
 	}
 }
 
@@ -81,12 +86,27 @@ func (r *ConcurrentRulesRunner) processRule(ctx context.Context, rule Rule, data
 	default:
 	}
 
-	// Matcher evaluation.
-	matched := rule.Matcher.Match(ctx, data)
-	if !matched {
-		if err := r.cache.SaveMatch(ctx, rule.Matcher.Entity(), data, matched); err != nil {
-			r.logger.ErrorContext(ctx, "Failed to save matching rule in cache", "error", err)
+	// Coalesce identical concurrent misses for the same entity+data key.
+	// The exception check stays outside the flight; the matcher and the
+	// negative-result save run inside it so a burst computes and saves once.
+	key := string(rule.Matcher.Entity()) + ":" + string(data)
+	matched, coalesceErr := r.coalescer.do(ctx, key, func() (bool, error) {
+		matched := rule.Matcher.Match(ctx, data)
+		if !matched {
+			if err := r.cache.SaveMatch(ctx, rule.Matcher.Entity(), data, matched); err != nil {
+				return false, err
+			}
 		}
+
+		return matched, nil
+	})
+	if coalesceErr != nil {
+		// A cancelled waiter never computes; a failed negative-result save
+		// is reported and the rule is skipped, matching the log-and-continue
+		// convention.
+		r.logger.ErrorContext(ctx, "Failed to save matching rule in cache", "error", coalesceErr)
+		resultCh <- resultItem{matched: false, rule: rule}
+		return
 	}
 
 	resultCh <- resultItem{matched: matched, rule: rule}

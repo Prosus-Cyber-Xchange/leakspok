@@ -23,7 +23,7 @@ tasks:
     progress: tasks/task-4/progress.md
   - id: 5
     title: "Coalesce concurrent-runner cache misses with singleflight"
-    status: pending
+    status: done
     progress: tasks/task-5/progress.md
 ---
 
@@ -35,4 +35,4 @@ tasks:
 | Task 2: Map TTLJitterPercentage through the analyzer factory | done | [details](tasks/task-2/progress.md) |
 | Task 3: Pass RunnerOptions to the serial rules runner (breaking) | done | [details](tasks/task-3/progress.md) |
 | Task 4: Coalesce serial-runner cache misses with singleflight | done | [details](tasks/task-4/progress.md) |
-| Task 5: Coalesce concurrent-runner cache misses with singleflight | pending | [details](tasks/task-5/progress.md) |
+| Task 5: Coalesce concurrent-runner cache misses with singleflight | done | [details](tasks/task-5/progress.md) |
