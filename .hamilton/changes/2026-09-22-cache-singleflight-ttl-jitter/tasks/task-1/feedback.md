@@ -3,8 +3,8 @@ artifact: feedback
 change: 2026-09-22-cache-singleflight-ttl-jitter
 task: 1
 created: 2026-09-22
-status: open
-decision: rejected
+status: resolved
+decision: accepted
 ---
 
 # Code Feedback: Task 1 — Add TTL jitter to the rule-matching cache
@@ -23,3 +23,17 @@ Verdict: changes-requested
 
 - [analyzer/cache/ttl_jitter_test.go:107-109] `TestRuleMatchingCache_TTLJitter_ZeroPreservesBaseTTL` uses the same remaining-TTL measurement; its 200 ms tolerance is comfortable at the current 10 s base but inherits the decay race if the base is lowered — fold in elapsed-time compensation alongside the ServerWriteInBand fix for consistency.
 - [plan.md step 2] Plan/design constraint (recorded per rubric): the plan's prescribed raw-PTTL in-band assertion over a 10 s base at ±15 % is inherently decay-racy because the floor coincides with the band's low edge; consider amending the example to a decay-compensated band assertion so Task 1's Verify gate is deterministic. The blocking fix above already stays within this binding intent.
+
+## Pass 2 — 2026-09-22
+
+Base: 0e9b6308f42139f54b90512615af26fb6bc825c7
+Head: 27645c6cd69de446b4b3526e1f8fa1f458c86e7c
+Verdict: approved
+
+### Blocking
+
+- None.
+
+### Suggestions
+
+- [analyzer/cache/ttl_jitter_test.go] Pass 1's blocking finding verified resolved: `TestRuleMatchingCache_TTLJitter_ServerWriteInBand` and `TestRuleMatchingCache_TTLJitter_ZeroPreservesBaseTTL` now assert decay-compensated `pttl + elapsed` against the band (5 ms slack) and base (200 ms tolerance), the `spread` regression probe is intact against the compensated value, and the previously flaky tests are empirically stable: 4 consecutive `go test -race -count=1 ./analyzer/cache/...` runs green, the `-count=8` isolation (previously PTTL 8483/8491) green, full `go test -race -count=1 ./...` green, and `golangci-lint` reports no findings in the three task-owned files.
