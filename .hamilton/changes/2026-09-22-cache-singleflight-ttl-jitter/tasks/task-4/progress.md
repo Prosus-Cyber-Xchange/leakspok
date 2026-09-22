@@ -2,7 +2,7 @@
 artifact: task-progress
 change: 2026-09-22-cache-singleflight-ttl-jitter
 task: 4
-status: pending
+status: done
 updated: 2026-09-22
 decision: accepted
 ---
@@ -40,4 +40,37 @@ Outcome: blocked
 - Production edits from this attempt are left uncommitted for a later retry: `analyzer/singleflight_coalescer.go` (created), `analyzer/serial_runner_coalescing_test.go` (created), `analyzer/serial_runner.go` (modified), `go.mod`/`go.sum`/`vendor/` (modified by `task vendor`). The task log and root row carry the blocked record only.
 - Checkpoint `tasks/task-4/.base` (`baab2c2f041a09b72a37b2a51375bd17a39a237e`) was already established by the orchestrator, validated (resolves to a commit, is an ancestor of current `HEAD`, precedes this first attempt) and preserved; it remains untracked and untouched.
 - `task lint` reports the two findings above exclusively in `analyzer/singleflight_coalescer.go`, the file whose exact content is fixed by plan.md Step 1. The remaining `analyzer` lint baseline is unchanged (the same pre-existing findings Task 3 documented).
+
+## Attempt 2 — 2026-09-22
+
+Outcome: done
+
+### Changed paths
+
+- Created:
+  - `analyzer/singleflight_coalescer.go` — the `singleflightCoalescer` type per the amended plan.md Step 1 verbatim: `do` has a **pointer receiver** (`func (c *singleflightCoalescer) do(...)`), `newSingleflightCoalescer` returns `*singleflightCoalescer`, the `res.Val.(bool)` assertion is **checked** (`matched, ok := res.Val.(bool)`; on failure returns a `fmt.Errorf` with the concrete type), and `fmt` is imported. Diffed against the plan snippet: identical modulo whitespace.
+  - `analyzer/serial_runner_coalescing_test.go` — package `analyzer_test`; counting `CacheStore` fake (`countingCache`, always-miss `GetMatch`, sync-protected save counter with configurable `saveErr`), `cachedFalseCache` (cached false hit), `newSerialRunnerWithCache` factory, counting matcher via `pattern.PatternFunc` with an atomic counter, and the six tests: (a) burst of 20 identical concurrent misses, (b) two sequential rounds recompute, (c) disabled computes per caller, (d) cached-hit short-circuit skips matcher, (e) cancelled waiter unblocks promptly without computing, (f) coalesced save error is logged and the rule is skipped. The burst test (a) holds the flight open with a blocking matcher until all 20 callers join (release after the leader enters the matcher plus a 50ms grace), so exactly-one-compute is deterministic under `-race` (verified `-count=10`); the original instant-matcher version was scheduling-racy (flight closed before stragglers arrived, yielding 5 computes).
+  - `vendor/golang.org/x/sync/singleflight/` — vendored via `task vendor`; `singleflight.go` diffed against the module cache (`golang.org/x/sync@v0.20.0`) and identical.
+- Modified:
+  - `analyzer/serial_runner.go` — `SerialRulesRunner` gains a `coalescer *singleflightCoalescer` field constructed **exactly once** via `newSingleflightCoalescer(options.Cache.SingleflightEnabled)` in `NewSerialRulesRuner` (the `&coalescer` double-pointer from the partial attempt was fixed to store the constructor's pointer directly); the miss path (after the exception check) wraps the matcher + conditional `SaveMatch(false)` inside `coalescer.do` keyed by `string(rule.Matcher.Entity()) + ":" + string(data)`; `GetMatch` logging and the exception check untouched; on coalescer error, `ErrorContext` logs and the rule is skipped with no match. The match-and-save segment was extracted into a private `matchAndSave` helper to keep `Process`'s cognitive complexity at 20 (the inline flight closure pushed it to 21, a new gocognit finding; `go vet` copylocks and errcheck are clean).
+  - `go.mod` — `golang.org/x/sync v0.20.0` promoted from indirect to direct requirement (via `task vendor`).
+  - `vendor/modules.txt` — adds `golang.org/x/sync/singleflight`.
+- Deleted: none
+- Reverted: every `vendor/` file whose only diff was gofmt doc-comment whitespace churn from the local toolchain's `task vendor` run (~200 files) — restored to committed state via `git checkout`; only `go.mod`, `vendor/modules.txt`, and `vendor/golang.org/x/sync/singleflight/` carry vendor changes. `go.sum` is unchanged (v0.20.0 checksums already present from prior indirect use).
+
+### Verification
+
+- `go build ./...` → success.
+- `go vet ./analyzer/` → clean (no copylocks; checked type assertion passes).
+- `go test -race -count=1 ./analyzer/...` → PASS (all packages: `analyzer` and `analyzer/cache`). All six coalescing tests pass: burst exactly-one-compute/exactly-one-save, sequential-burst recompute, disabled per-caller compute, cached-hit zero matcher calls, cancelled waiter unblocks without computing, save-error log-and-continue.
+- `go test -race -count=1 ./...` → PASS (root, analyzer, analyzer/cache, monitoring, pattern; examples carry no tests). Ran with `DOCKER_HOST=unix:///Users/caio.cavalcante/.colima/default/docker.sock TESTCONTAINERS_RYUK_DISABLED=true` (testcontainers requires colima's docker socket in this environment — same pre-existing environmental requirement documented by Task 3).
+- `go test -race -count=10 -run 'TestSerialRulesRunner_CoalescesConcurrentMisses' ./analyzer/` → PASS 10/10 (deterministic exactly-one-compute after the flight-hold fix).
+- `task lint` → 11 findings, all the pre-existing baseline documented by Task 3 (outside this task's lane: `analyzer/coverage_gap_test.go`, `analyzer/byte_analyzer_test.go`, `analyzer/cache/store.go`, `analyzer/cache/tracer.go`, `pattern/matcher_test.go`, `monitoring/tracing_test.go`). Zero findings in `analyzer/serial_runner.go`, `analyzer/singleflight_coalescer.go`, or `analyzer/serial_runner_coalescing_test.go`.
+
+### Notes
+
+- **Resolution of Attempt 1 blocker**: plan.md was amended (commit `a115a63`) to a pointer receiver + checked type assertion, an explicit once-constructed stored-pointer step, and the vendor whitespace-churn revert instruction. The partial production edits from Attempt 1 were reconciled in place: the coalescer was rewritten to the amended verbatim (pointer receiver, checked assertion, `fmt` import), the `NewSerialRulesRuner` construction was corrected to store the pointer directly, and the ~200 cosmetic-churn vendor files were reverted to HEAD. Checkpoint `tasks/task-4/.base` (`baab2c2f041a09b72a37b2a51375bd17a39a237e`) was validated (resolves, ancestor of current `HEAD`, precedes the first attempt) and preserved untracked.
+- The burst test's blocking matcher deviates from a naive instant-counting matcher because an instant flight closes before 20 racing goroutines join, fragmenting the burst (empirically 5 computes). Holding the flight open until the burst joins is the only way to deterministically assert the requirement's "compute function runs exactly once" under the race detector; the assertion itself is unchanged.
+- `matchAndSave` was extracted from `Process` to keep gocognit ≤ 20 (inline closure pushed it to 21 — a new lint finding this task would otherwise introduce). Behavior is identical; the plan's requirement that matcher + conditional save run inside `coalescer.do` is preserved (the helper is the `do` callback).
+
 
