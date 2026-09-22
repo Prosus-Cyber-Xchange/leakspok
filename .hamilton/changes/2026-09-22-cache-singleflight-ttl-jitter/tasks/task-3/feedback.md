@@ -36,3 +36,17 @@ Verdict: approved
 ### Suggestions
 
 - [README.md:82, README.md:120] Verified coverage: both snippets now call the three-argument constructor exactly as Pass 1 prescribed, the full suite is green under `go test -race -count=1 ./...` (all packages), and `SingleflightEnabled` is confirmed defined-but-unread (grep shows it only in `analyzer/factory.go`), preserving the no-behavior-change criterion.
+
+## Pass 3 — 2026-09-22
+
+Base: ed1aaf8a5f50d12889e00002905af68626e1a97f
+Head: a24c6f55061ed3910efb9aff99d5be84297b99d3
+Verdict: approved
+
+### Blocking
+
+- None.
+
+### Suggestions
+
+- [range extension] Head extended from Pass 2's fad32242f02d9484bbca824c6a6b7f563436d999 to a24c6f55061ed3910efb9aff99d5be84297b99d3 to cover the latest progress-touching and bookkeeping commits (task-progress canonicalization 4957f2a, whole-branch review e1927c9, Task 1 feedback re-approval a24c6f5). Task 3's own production files (analyzer/factory.go, examples/basic/main.go, examples/custom-rules/main.go, analyzer/serial_runner_test.go, analyzer/coverage_gap_test.go, analyzer/runner_behavior_test.go, analyzer/byte_analyzer_test.go, README.md) are byte-identical to the Pass 2 head; the only Task 3-lane file differing in the range is analyzer/serial_runner.go, whose changes are Task 4's coalescing (db948ff, cae34f5) already covered by Task 4's own feedback passes and whole-branch review e1927c9. Re-verified at the new head: three-argument `NewSerialRulesRuner` signature with options stored, `CacheOptions.SingleflightEnabled` with the required doc comment, `go build ./...` clean, and `go test -race -count=1 ./...` fully green.
