@@ -39,3 +39,26 @@ Outcome: done
 - No `NewConcurrentRulesRunner` call was touched.
 - Checkpoint `tasks/task-3/.base` (`ed1aaf8a5f50d12889e00002905af68626e1a97f`) validated and preserved; it is an ancestor of current `HEAD` and precedes this first attempt.
 
+## Attempt 2 — 2026-09-22
+
+Outcome: done
+
+### Changed paths
+
+- Created: none
+- Modified:
+  - `README.md` — both usage examples (lines 82 and 120) updated from the old two-argument `analyzer.NewSerialRulesRuner(logger, nil)` to `analyzer.NewSerialRulesRuner(logger, analyzer.RunnerOptions{}, nil)`, matching the other call sites in the diff. `README.md` is added to this task's changed files because the acceptance criterion "every call site in the repo compiles against the new signature" makes the documented direct-caller examples in-scope; the plan's step 4 file enumeration omitted them (noted in Pass 1 feedback), and this correction stays within the pre-approved break's intent.
+- Deleted: none
+
+### Verification
+
+- `go build ./...` → success
+- `go test -race -count=1 ./...` → all packages pass (root, analyzer, analyzer/cache, monitoring, pattern; examples carry no tests). Ran with `DOCKER_HOST=unix:///Users/caio.cavalcante/.colima/default/docker.sock TESTCONTAINERS_RYUK_DISABLED=true` per Attempt 1's environment note; the colima docker socket is required for the `analyzer/cache` testcontainers tests.
+- `task lint` → 11 findings, all the same pre-existing findings documented in Attempt 1 (identical at checkpoint base `ed1aaf8`); this correction touches only `README.md`, which is not a lint target, so zero new findings. The flagged lines remain outside this task's lane.
+
+### Notes
+
+- Pass 1 feedback (verdict changes-requested) addressed: both README snippets (README.md:82, README.md:120) now call the three-argument constructor with `analyzer.RunnerOptions{}` inserted as the second argument, exactly the minimal fix prescribed by the feedback.
+- Acceptance confirmed: `NewSerialRulesRuner(logger, options RunnerOptions, cache)` compiles; `SerialRulesRunner` stores the options; `CacheOptions.SingleflightEnabled bool` (default false) with the required doc comment; every call site in the repo — code, examples, tests, and README — compiles against the new signature; full suite green; no behavior change (the flag is not read by anyone yet).
+- Checkpoint `tasks/task-3/.base` (`ed1aaf8a5f50d12889e00002905af68626e1a97f`) re-validated and preserved across this correction attempt; it remains an ancestor of current `HEAD` and precedes both attempts.
+

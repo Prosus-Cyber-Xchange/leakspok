@@ -79,7 +79,7 @@ func main() {
 		leakspok.DefaultCreditCardRule,
 	}
 	logger := slog.Default()
-	runner := analyzer.NewSerialRulesRuner(logger, nil)
+	runner := analyzer.NewSerialRulesRuner(logger, analyzer.RunnerOptions{}, nil)
 	sa := analyzer.NewStringAnalyzer(logger, runner)
 
 	result, details := sa.Anonymize(
@@ -117,7 +117,7 @@ The simplest path uses pre-built default rules with a serial runner:
 
 ```go
 logger := slog.Default()
-runner := analyzer.NewSerialRulesRuner(logger, nil)
+runner := analyzer.NewSerialRulesRuner(logger, analyzer.RunnerOptions{}, nil)
 sa := analyzer.NewStringAnalyzer(logger, runner)
 
 result, details := sa.Anonymize(ctx, rules, input)
