@@ -14,22 +14,22 @@ import (
 // SerialRulesRunner is safe for concurrent use.
 type SerialRulesRunner struct {
 	logger    *slog.Logger
-	options   RunnerOptions
 	cache     analyzercache.CacheStore
-	coalescer *singleflightCoalescer
+	coalescer singleflightDoer
 }
 
 // NewSerialRulesRuner creates a new instance of SerialRulesRunner with the provided
 // logger, runner options, and cache store.
 func NewSerialRulesRuner(logger *slog.Logger, options RunnerOptions, cache analyzercache.CacheStore) SerialRulesRunner {
+	var coalescer singleflightDoer = disabledSingleflightCoalescer{}
+	if options.Cache.Enabled && options.Cache.SingleflightEnabled {
+		coalescer = newSingleflightCoalescer()
+	}
+
 	return SerialRulesRunner{
-		logger:  logger,
-		options: options,
-		cache:   cache,
-		// Coalescing is a cache-miss behavior: it only takes effect when the
-		// cache backend is enabled. With the noop cache (Enabled=false) the
-		// flag is ignored and every miss computes independently.
-		coalescer: newSingleflightCoalescer(options.Cache.Enabled && options.Cache.SingleflightEnabled),
+		logger:    logger,
+		cache:     cache,
+		coalescer: coalescer,
 	}
 }
 
@@ -67,7 +67,7 @@ func (s SerialRulesRunner) Process(ctx context.Context, rules []Rule, data []byt
 		// Coalesce identical concurrent misses for the same entity+data key.
 		// The exception check stays outside the flight; the matcher and the
 		// negative-result save run inside it so a burst computes and saves once.
-		key := string(rule.Matcher.Entity()) + ":" + string(data)
+		key := singleflightKey(string(rule.Matcher.Entity()), data)
 		matched, coalesceErr := s.coalescer.do(ctx, key, func() (bool, error) {
 			return s.matchAndSave(ctx, rule, data)
 		})

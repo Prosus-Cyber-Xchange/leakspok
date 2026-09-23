@@ -21,23 +21,23 @@ type resultItem struct {
 type ConcurrentRulesRunner struct {
 	logger    *slog.Logger
 	cache     analyzercache.CacheStore
-	options   RunnerOptions
 	pool      WorkerPool
-	coalescer *singleflightCoalescer
+	coalescer singleflightDoer
 }
 
 // NewConcurrentRulesRunner creates a ConcurrentRulesRunner backed by the given pool.
 // The caller is responsible for the pool's lifecycle; Stop delegates to pool.ReleaseContext.
 func NewConcurrentRulesRunner(logger *slog.Logger, options RunnerOptions, cache analyzercache.CacheStore, pool WorkerPool) *ConcurrentRulesRunner {
+	var coalescer singleflightDoer = disabledSingleflightCoalescer{}
+	if options.Cache.Enabled && options.Cache.SingleflightEnabled {
+		coalescer = newSingleflightCoalescer()
+	}
+
 	return &ConcurrentRulesRunner{
-		logger:  logger,
-		cache:   cache,
-		options: options,
-		pool:    pool,
-		// Coalescing is a cache-miss behavior: it only takes effect when the
-		// cache backend is enabled. With the noop cache (Enabled=false) the
-		// flag is ignored and every miss computes independently.
-		coalescer: newSingleflightCoalescer(options.Cache.Enabled && options.Cache.SingleflightEnabled),
+		logger:    logger,
+		cache:     cache,
+		pool:      pool,
+		coalescer: coalescer,
 	}
 }
 
@@ -89,7 +89,7 @@ func (r *ConcurrentRulesRunner) processRule(ctx context.Context, rule Rule, data
 	// Coalesce identical concurrent misses for the same entity+data key.
 	// The exception check stays outside the flight; the matcher and the
 	// negative-result save run inside it so a burst computes and saves once.
-	key := string(rule.Matcher.Entity()) + ":" + string(data)
+	key := singleflightKey(string(rule.Matcher.Entity()), data)
 	matched, coalesceErr := r.coalescer.do(ctx, key, func() (bool, error) {
 		matched := rule.Matcher.Match(ctx, data)
 		if !matched {

@@ -11,22 +11,31 @@ import (
 // callers while enabled. Results are shared only while the call is in flight;
 // the key is forgotten on completion so a later burst recomputes.
 type singleflightCoalescer struct {
-	group   singleflight.Group
-	enabled bool
+	group singleflight.Group
 }
 
-func newSingleflightCoalescer(enabled bool) *singleflightCoalescer {
-	return &singleflightCoalescer{enabled: enabled}
+type singleflightDoer interface {
+	do(ctx context.Context, key string, fn func() (bool, error)) (bool, error)
 }
 
-// do runs fn once per key among concurrent callers and shares its result.
-// When disabled, fn runs once per caller. A caller whose context is
-// cancelled while waiting returns ctx.Err() without running fn.
+type disabledSingleflightCoalescer struct{}
+
+func (disabledSingleflightCoalescer) do(_ context.Context, _ string, fn func() (bool, error)) (bool, error) {
+	return fn()
+}
+
+func newSingleflightCoalescer() *singleflightCoalescer {
+	return &singleflightCoalescer{}
+}
+
+func singleflightKey(entity string, data []byte) string {
+	return entity + ":" + string(data)
+}
+
+// do runs fn once per key among concurrent callers and shares its result. A
+// caller whose context is cancelled while waiting returns ctx.Err() without
+// running fn.
 func (c *singleflightCoalescer) do(ctx context.Context, key string, fn func() (bool, error)) (bool, error) {
-	if !c.enabled {
-		return fn()
-	}
-
 	ch := c.group.DoChan(key, func() (any, error) {
 		defer c.group.Forget(key)
 		matched, err := fn()
