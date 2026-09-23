@@ -10,6 +10,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/redis v0.40.0
 	github.com/valkey-io/valkey-go v1.0.75
 	go.uber.org/mock v0.6.0
+	golang.org/x/sync v0.20.0
 )
 
 require github.com/prometheus/client_golang v1.23.0 // indirect
@@ -275,7 +276,6 @@ require (
 	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/perf v0.0.0-20251112180420-cfbd823f7301 // indirect
-	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.12.0 // indirect

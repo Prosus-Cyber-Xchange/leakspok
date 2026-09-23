@@ -164,7 +164,7 @@ func main() {
 
 	// ── Build the analyzer and run ────────────────────────────────────
 	logger := slog.Default()
-	runner := analyzer.NewSerialRulesRuner(logger, analyzercache.NewNoopRuleMatchingCache())
+	runner := analyzer.NewSerialRulesRuner(logger, analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 	sa := analyzer.NewStringAnalyzer(logger, runner)
 
 	// Input demonstrates all rule behaviors:

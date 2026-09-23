@@ -253,6 +253,7 @@ func TestSerialRulesRunner_ProcessCachePositiveHit(t *testing.T) {
 
 	runner := analyzer.NewSerialRulesRuner(
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		analyzer.RunnerOptions{},
 		cache,
 	)
 
@@ -282,6 +283,7 @@ func TestSerialRulesRunner_ProcessCacheNegativeHitIsSkipped(t *testing.T) {
 
 	runner := analyzer.NewSerialRulesRuner(
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		analyzer.RunnerOptions{},
 		cache,
 	)
 
@@ -715,4 +717,81 @@ func TestMakeByteAnalyzer_ValkeyConfigMutator(t *testing.T) {
 
 		cachetesting.AssertValkeyClientName(t, addr, clientName)
 	})
+}
+
+// ─── TTLJitterPercentage forwarding through the analyzer factory ─────────────
+
+// TestMakeByteAnalyzer_TTLJitterPercentageInBand proves end-to-end that a
+// TTLJitterPercentage set through the public analyzer cache configuration path
+// (analyzer.CacheOptions.TTLJitterPercentage) reaches the rule-matching cache
+// and jitters the SET PX written on a negative result. A disposable single-node
+// Valkey server is used, a real negative-result write happens during Anonymize,
+// and a separate inspection client reads the key's PTTL. The raw PTTL is
+// compensated with the time elapsed since the write because PTTL only decays,
+// mirroring the cache-level jitter tests; the ±15% band on a 30s base TTL is
+// 9000 ms wide, so ms-scale decay and integer rounding cannot affect the
+// assertion.
+func TestMakeByteAnalyzer_TTLJitterPercentageInBand(t *testing.T) {
+	addr := cachetesting.StartValkeyContainer(t)
+	ctx := context.Background()
+
+	const ttl = 30 * time.Second
+	const jitter = 0.15
+	const input = "plaininputwithoutpii"
+
+	ba, err := analyzer.MakeByteAnalyzer(ctx,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		analyzer.RunnerOptions{
+			Cache: analyzer.CacheOptions{
+				Enabled:                 true,
+				TTL:                     ttl,
+				TTLJitterPercentage:     jitter,
+				DisableInMemoryCache:    true,
+				RedisAddr:               addr,
+				RedisDisableClusterMode: true,
+			},
+		})
+	require.NoError(t, err)
+	defer ba.Stop()
+
+	rules := []analyzer.Rule{
+		{
+			Name:    "email",
+			Matcher: pattern.EmailMatcher(),
+			Settings: analyzer.RuleSettings{
+				Strategy: analyzer.REDACT,
+				Redact:   &analyzer.RedactSettings{Placeholder: "[EMAIL]"},
+			},
+		},
+	}
+
+	// A plain, single-token input does not match the email rule, so the runner
+	// writes one negative result under "EMAIL:<token>". Record the write time so
+	// the PTTL read can be compensated for decay.
+	savedAt := time.Now()
+	out := &bytes.Buffer{}
+	details := ba.Anonymize(ctx, rules, out, []byte(input))
+	assert.False(t, details.HasFindings)
+	assert.Equal(t, input, out.String())
+
+	key := string(pattern.EntityEmail) + ":" + input
+
+	inspector, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress:       []string{addr},
+		ForceSingleClient: true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(inspector.Close)
+
+	pttl, pttlErr := inspector.Do(ctx, inspector.B().Pttl().Key(key).Build()).ToInt64()
+	require.NoError(t, pttlErr)
+
+	elapsedMs := float64(time.Since(savedAt)) / float64(time.Millisecond)
+	effectiveMs := float64(pttl) + elapsedMs
+
+	baseMs := float64(ttl / time.Millisecond)
+	// bandSlackMs absorbs PTTL's integer-ms rounding and measurement lag.
+	const bandSlackMs = 5.0
+	assert.GreaterOrEqual(t, effectiveMs, baseMs*(1-jitter)-bandSlackMs, "effective TTL below jitter band")
+	assert.LessOrEqual(t, effectiveMs, baseMs*(1+jitter)+bandSlackMs, "effective TTL above jitter band")
 }
