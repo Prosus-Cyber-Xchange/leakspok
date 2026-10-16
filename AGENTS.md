@@ -159,7 +159,7 @@ golangci-lint run -c .golangci.yml
 
 ## Dependencies & Versioning
 
-- **Go Version**: 1.24.0 (toolchain 1.24.3)
+- **Go Version**: 1.25.0 (per `go.mod`)
 - **Key Dependencies**:
   - `code.ifoodcorp.com.br/ifood/security/libs/go/foodsec-go-sdk`: Internal logging and security utilities
   - `github.com/google/uuid`: UUID generation
@@ -174,10 +174,9 @@ task vendor  # This runs go mod tidy && go mod vendor
 
 ## CI/CD
 
-### GitLab CI Pipeline (`.gitlab-ci.yml`)
-- **lint**: Runs golangci-lint, reports code quality
-- **unit_test**: Runs tests with coverage reports
-- **release**: Automatic versioning and tagging based on `VERSION` file
+### GitHub Actions CI (`.github/workflows/`)
+- **Unit Tests** (`unit-tests.yml`): on every push and PR to `main`, runs `go test -short -race -count=1` with coverage
+- **Tag Release** (`tag-release.yml`): when `VERSION` changes on `main`, creates and pushes the annotated `v<VERSION>` tag that triggers the release
 
 ### Local Pre-Commit Checks
 - Configuration in `.pre-commit-config.yaml`
@@ -220,8 +219,8 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
-	"github.com/New-Horizons-Team/leakspok"
-	"github.com/New-Horizons-Team/leakspok/analyzer"
+	"github.com/Prosus-Cyber-Xchange/leakspok"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
 )
 
 func main() {

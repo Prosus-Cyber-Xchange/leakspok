@@ -4,14 +4,14 @@ capability: glossary
 status: current
 updated: 2026-10-16
 author: Caio Cavalcante <caio.cavalcante@ifood.com.br>
-decision: skipped
+decision: accepted
 ---
 
 # Capability: glossary
 
 ## Overview
 
-The project's canonical, context-scoped ubiquitous language. Leakspok is a single-context Go library for detecting and anonymizing sensitive data; entries below are seeded from established project documentation (AGENTS.md, README.md, and the canonical specs in `.kepler/specs/`). Code-derived meanings were kept out; the requester has not yet confirmed the language, so `decision` remains `skipped`.
+The project's canonical, context-scoped ubiquitous language. Leakspok is a single-context Go library for detecting and anonymizing sensitive data; entries below are seeded from established project documentation (AGENTS.md, README.md, and the canonical specs in `.kepler/specs/`). Code-derived meanings were kept out. The requester confirmed this language on 2026-10-16.
 
 ## Contract
 
@@ -42,4 +42,4 @@ Read a term within its named context. Leakspok currently documents one shared co
 
 ## Decisions
 
-- Seeded only from established documentation (AGENTS.md, README.md, canonical specs). No code-derived definition was promoted without requester confirmation; the requester has not yet reviewed the language, so `decision: skipped` is preserved.
+- Seeded only from established documentation (AGENTS.md, README.md, canonical specs). No code-derived definition was promoted without requester confirmation; the requester confirmed the language on 2026-10-16 (attended review).
