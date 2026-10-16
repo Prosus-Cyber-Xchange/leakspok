@@ -142,8 +142,6 @@ type tokenSpyCache struct {
 
 	tokenReads int
 	tokenSaves int
-	pairReads  int
-	pairSaves  int
 	lastSave   map[pattern.Entity]bool
 }
 
@@ -172,26 +170,10 @@ func (c *tokenSpyCache) SaveMatches(_ context.Context, _ []byte, results map[pat
 	return c.saveErr
 }
 
-func (c *tokenSpyCache) GetMatch(_ context.Context, _ pattern.Entity, _ []byte) (bool, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.pairReads++
-	return false, analyzercache.ErrCacheNotFound
-}
-
-func (c *tokenSpyCache) SaveMatch(_ context.Context, _ pattern.Entity, _ []byte, _ bool) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.pairSaves++
-	return nil
-}
-
 // spyCounts snapshots the call counters of a tokenSpyCache.
 type spyCounts struct {
 	tokenReads int
 	tokenSaves int
-	pairReads  int
-	pairSaves  int
 }
 
 func (c *tokenSpyCache) counts() spyCounts {
@@ -200,8 +182,6 @@ func (c *tokenSpyCache) counts() spyCounts {
 	return spyCounts{
 		tokenReads: c.tokenReads,
 		tokenSaves: c.tokenSaves,
-		pairReads:  c.pairReads,
-		pairSaves:  c.pairSaves,
 	}
 }
 
@@ -235,8 +215,6 @@ func TestConcurrentRulesRunner_ProcessIssuesOneTokenScopedRead(t *testing.T) {
 	counts := cache.counts()
 	assert.Equal(t, 1, counts.tokenReads, "Process must issue exactly one token-scoped read")
 	assert.Equal(t, 1, counts.tokenSaves, "Process must persist the negatives in exactly one batched save")
-	assert.Zero(t, counts.pairReads, "no legacy per-pair read may be issued")
-	assert.Zero(t, counts.pairSaves, "no legacy per-pair save may be issued")
 	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, cache.savedFields(),
 		"the evaluated negative is the only persisted field")
 }
@@ -336,7 +314,6 @@ func TestConcurrentRulesRunner_ProcessExceptedEntityNeverEvaluatedOrPersisted(t 
 	counts := cache.counts()
 	assert.Equal(t, 1, counts.tokenReads)
 	assert.Zero(t, counts.tokenSaves, "an excepted entity is never persisted")
-	assert.Zero(t, counts.pairSaves)
 }
 
 // TestConcurrentRulesRunner_ProcessBackendReadErrorDegradesToFullEvaluation
@@ -529,8 +506,6 @@ func TestConcurrentRulesRunner_ProcessTokenCoalescingSharesEvaluationAndSave(t *
 	counts := cache.counts()
 	assert.Equal(t, callers, counts.tokenReads, "every caller issues its own token-scoped read")
 	assert.Equal(t, 1, counts.tokenSaves, "one burst on the same token must save exactly once")
-	assert.Zero(t, counts.pairReads)
-	assert.Zero(t, counts.pairSaves)
 }
 
 // TestConcurrentRulesRunner_ProcessTokenCoalescingCancelledWaiter pins down

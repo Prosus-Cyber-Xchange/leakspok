@@ -9,12 +9,8 @@ import (
 // CacheStore defines the interface for caching rule matching results.
 // The token-scoped methods store one hash per token: GetMatches reads every
 // entity cached for a token in one command, and SaveMatches persists a batch
-// of results for a token in one command. The legacy per-pair methods remain
-// for existing callers until they migrate.
+// of results for a token in one command.
 type CacheStore interface {
-	GetMatch(ctx context.Context, entity pattern.Entity, data []byte) (bool, error)
-	SaveMatch(ctx context.Context, entity pattern.Entity, data []byte, matched bool) error
-
 	// GetMatches retrieves every rule-matching result stored for the token's
 	// hash with a single command. The returned map holds exactly the entities
 	// present in the hash; an entity absent from the map is a cache miss. An

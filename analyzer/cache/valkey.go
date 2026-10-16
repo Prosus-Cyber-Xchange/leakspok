@@ -8,7 +8,6 @@ import (
 	"math/rand/v2"
 	"net"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
@@ -35,7 +34,6 @@ type RuleMatchingCache struct {
 	cacheTTL   time.Duration
 	jitterPct  float64
 	disableCSC bool
-	keyBufPool sync.Pool
 }
 
 // NewRuleMatchingCache creates a RuleMatchingCache from the provided options.
@@ -108,52 +106,6 @@ func (r *RuleMatchingCache) jitteredTTL() time.Duration {
 // the jittered local expiry.
 func (r *RuleMatchingCache) useClientSideCache() bool {
 	return !r.disableCSC && r.cacheTTL > 0
-}
-
-// GetMatch retrieves a cached rule matching result.
-// Uses DoCache for client-side caching unless disabled; falls back to Do otherwise.
-// Auto pipelining coalesces concurrent calls into a single network round-trip.
-func (r *RuleMatchingCache) GetMatch(ctx context.Context, entity pattern.Entity, data []byte) (bool, error) {
-	key := r.key(entity, data)
-
-	var result valkey.ValkeyResult
-
-	if !r.useClientSideCache() {
-		result = r.client.Do(ctx, r.client.B().Get().Key(key).Build())
-	} else {
-		result = r.client.DoCache(ctx, r.client.B().Get().Key(key).Cache(), r.jitteredTTL())
-	}
-
-	val, err := result.ToString()
-	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return false, ErrCacheNotFound
-		}
-
-		return false, err
-	}
-
-	return val == "1", nil
-}
-
-// SaveMatch caches a rule matching result.
-// Auto pipelining coalesces concurrent writes into a single network round-trip.
-func (r *RuleMatchingCache) SaveMatch(ctx context.Context, entity pattern.Entity, data []byte, matched bool) error {
-	key := r.key(entity, data)
-
-	val := "0"
-	if matched {
-		val = "1"
-	}
-
-	var cmd valkey.Completed
-	if r.cacheTTL > 0 {
-		cmd = r.client.B().Set().Key(key).Value(val).Px(r.jitteredTTL()).Build()
-	} else {
-		cmd = r.client.B().Set().Key(key).Value(val).Build()
-	}
-
-	return r.client.Do(ctx, cmd).Error()
 }
 
 // matchKey encodes a token's hash key: the token content under the namespace.
@@ -256,32 +208,4 @@ func (r *RuleMatchingCache) expireSeconds() int64 {
 	}
 
 	return seconds
-}
-
-// key generates a cache key in "entity:data" format, reusing a sync.Pool buffer.
-func (r *RuleMatchingCache) key(x pattern.Entity, y []byte) string {
-	n := len(x) + 1 + len(y)
-
-	var buf []byte
-
-	if raw := r.keyBufPool.Get(); raw != nil {
-		//nolint:forcetypeassert,errcheck // sync.Pool stores []byte, type assertion is safe
-		buf = raw.([]byte)
-	}
-
-	if cap(buf) < n {
-		buf = make([]byte, n)
-	}
-	buf = buf[:n]
-
-	i := copy(buf, x)
-	buf[i] = ':'
-	copy(buf[i+1:], y)
-
-	s := string(buf)
-
-	//nolint:staticcheck // SA6002: using non-pointer intentionally for buffer reuse
-	r.keyBufPool.Put(buf)
-
-	return s
 }

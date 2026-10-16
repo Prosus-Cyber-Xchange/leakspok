@@ -304,7 +304,10 @@ func TestTokenHash_ClientSideReads(t *testing.T) {
 	})
 }
 
-// TestTokenHash_TracerGetMatches mirrors the legacy tracer contract for the
+// cacheTracerTestKey is the context key shared by the tracer delegation tests.
+type cacheTracerTestKey struct{}
+
+// TestTokenHash_TracerGetMatches mirrors the tracer contract for the
 // token-scoped read: the decorator delegates to the underlying store and
 // forwards the span-bearing context so the token-tagged span wraps the call.
 func TestTokenHash_TracerGetMatches(t *testing.T) {
@@ -326,7 +329,7 @@ func TestTokenHash_TracerGetMatches(t *testing.T) {
 			return want, nil
 		})
 
-	callerCtx := context.WithValue(context.Background(), cacheTracerTestKey{}, "marker") //nolint:staticcheck // test-only context key, mirrors the legacy tracer tests
+	callerCtx := context.WithValue(context.Background(), cacheTracerTestKey{}, "marker") //nolint:staticcheck // test-only context key
 	tracer := analyzercache.NewCacheStoreTracer(mockUnderlying)
 	got, err := tracer.GetMatches(callerCtx, data)
 
@@ -335,7 +338,7 @@ func TestTokenHash_TracerGetMatches(t *testing.T) {
 	assert.Equal(t, "marker", capturedCtx.Value(cacheTracerTestKey{}))
 }
 
-// TestTokenHash_TracerSaveMatches mirrors the legacy tracer contract for the
+// TestTokenHash_TracerSaveMatches mirrors the tracer contract for the
 // token-scoped write: the decorator delegates to the underlying store and
 // forwards the span-bearing context so the token-tagged span wraps the call.
 func TestTokenHash_TracerSaveMatches(t *testing.T) {
@@ -357,7 +360,7 @@ func TestTokenHash_TracerSaveMatches(t *testing.T) {
 			return nil
 		})
 
-	callerCtx := context.WithValue(context.Background(), cacheTracerTestKey{}, "marker") //nolint:staticcheck // test-only context key, mirrors the legacy tracer tests
+	callerCtx := context.WithValue(context.Background(), cacheTracerTestKey{}, "marker") //nolint:staticcheck // test-only context key
 	tracer := analyzercache.NewCacheStoreTracer(mockUnderlying)
 	err := tracer.SaveMatches(callerCtx, data, results)
 

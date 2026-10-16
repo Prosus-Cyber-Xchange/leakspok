@@ -380,19 +380,11 @@ func TestStringAnalyzer_Stop(t *testing.T) {
 
 // ─── ConcurrentRulesRunner cache read error path ──────────────────────
 
-// errorCache returns an error on every GetMatch call.
+// errorCache returns an error on every GetMatches call.
 type errorCache struct{}
-
-func (e *errorCache) GetMatch(ctx context.Context, entity pattern.Entity, data []byte) (bool, error) {
-	return false, assert.AnError
-}
 
 func (e *errorCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
 	return nil, assert.AnError
-}
-
-func (e *errorCache) SaveMatch(ctx context.Context, entity pattern.Entity, data []byte, matched bool) error {
-	return nil
 }
 
 func (e *errorCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {

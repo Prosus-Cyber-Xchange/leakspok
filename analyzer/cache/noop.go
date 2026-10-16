@@ -16,16 +16,6 @@ func NewNoopRuleMatchingCache() NoopRuleMatchingCache {
 	return NoopRuleMatchingCache{}
 }
 
-// GetMatch always returns false with an ErrCacheNotFound error, simulating a cache miss.
-func (r NoopRuleMatchingCache) GetMatch(_ context.Context, _ pattern.Entity, _ []byte) (bool, error) {
-	return false, ErrCacheNotFound
-}
-
-// SaveMatch always returns nil, silently discarding the match result.
-func (r NoopRuleMatchingCache) SaveMatch(_ context.Context, _ pattern.Entity, _ []byte, _ bool) error {
-	return nil
-}
-
 // GetMatches always returns an empty map: every entity is a cache miss.
 func (r NoopRuleMatchingCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
 	return map[pattern.Entity]bool{}, nil
