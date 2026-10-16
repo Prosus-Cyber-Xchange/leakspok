@@ -6,10 +6,15 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
 	analyzercache "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache"
+	cachemock "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache/mocks"
+	analyzermock "github.com/Prosus-Cyber-Xchange/leakspok/analyzer/mocks"
+	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -78,14 +83,17 @@ func TestSerialRulesRunner_ProcessMultipleRulesSecondMatches(t *testing.T) {
 
 	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
+	// Each rule carries a distinct entity, mirroring production rules: under
+	// the token-scoped contract one entity has one outcome shared by every
+	// rule claiming it, so mixed outcomes need distinct entities.
 	rules := []analyzer.Rule{
 		{
 			Name:    "non-matching-rule",
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityEmail, false),
 		},
 		{
 			Name:    "matching-rule",
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityCPF, true),
 		},
 	}
 
@@ -144,18 +152,19 @@ func TestSerialRulesRunner_ProcessLargeRuleSet(t *testing.T) {
 
 	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
-	// Create a large set of non-matching rules
+	// Create a large set of non-matching rules, each with a distinct entity
+	// so every rule evaluates independently under the token-scoped contract.
 	rules := make([]analyzer.Rule, 100)
 	for i := 0; i < 99; i++ {
 		rules[i] = analyzer.Rule{
 			Name:    fmt.Sprintf("non-matching-rule-%d", i),
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.Entity(fmt.Sprintf("entity-%d", i)), false),
 		}
 	}
 	// Add one matching rule at the end
 	rules[99] = analyzer.Rule{
 		Name:    "matching-rule",
-		Matcher: newMatchingMatcher(ctrl),
+		Matcher: newEntityMatcher(ctrl, pattern.EntityCPF, true),
 	}
 
 	matchedRule, found := runner.Process(t.Context(), rules, []byte("test data"))
@@ -446,27 +455,28 @@ func TestSerialRulesRunner_ProcessReturnsFirstMatchRegardlessOfOrder(t *testing.
 
 	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
-	// Mix of matching and non-matching rules
+	// Mix of matching and non-matching rules, each with a distinct entity so
+	// every rule evaluates independently under the token-scoped contract.
 	rules := []analyzer.Rule{
 		{
 			Name:    "non-matching-1",
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityEmail, false),
 		},
 		{
 			Name:    "non-matching-2",
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityCPF, false),
 		},
 		{
 			Name:    "matching-1",
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityPhone, true),
 		},
 		{
 			Name:    "matching-2",
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityCreditCard, true),
 		},
 		{
 			Name:    "non-matching-3",
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityIPAddress, false),
 		},
 	}
 
@@ -483,24 +493,26 @@ func TestSerialRulesRunner_ProcessDisabledAndEnabledMix(t *testing.T) {
 
 	runner := analyzer.NewSerialRulesRuner(slog.New(slog.NewTextHandler(io.Discard, nil)), analyzer.RunnerOptions{}, analyzercache.NewNoopRuleMatchingCache())
 
+	// Each rule carries a distinct entity so the enabled rules evaluate
+	// independently under the token-scoped contract.
 	rules := []analyzer.Rule{
 		{
 			Name:    "disabled-matching-1",
 			Disable: true,
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityEmail, true),
 		},
 		{
 			Name:    "non-matching",
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityCPF, false),
 		},
 		{
 			Name:    "disabled-matching-2",
 			Disable: true,
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityPhone, true),
 		},
 		{
 			Name:    "enabled-matching",
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityCreditCard, true),
 		},
 	}
 
@@ -620,6 +632,305 @@ func TestSerialRulesRunner_ConcurrentMixedProcessCalls(t *testing.T) {
 		assert.True(t, hitResults[i], "concurrent call %d with matching rule should find match", i)
 		assert.False(t, missResults[i], "concurrent call %d with non-matching rule should not match", i)
 	}
+}
+
+// ─── Token-scoped cache contract (spy-based) ─────────────────────────────────
+
+// newEntityMatcher builds a mock matcher for the given entity whose Match
+// always returns matched.
+func newEntityMatcher(ctrl *gomock.Controller, entity pattern.Entity, matched bool) *analyzermock.MockMatcher {
+	mock := analyzermock.NewMockMatcher(ctrl)
+	mock.EXPECT().Entity().Return(entity).AnyTimes()
+	mock.EXPECT().Match(gomock.Any(), gomock.Any()).Return(matched).AnyTimes()
+	return mock
+}
+
+// newTokenScopedSerialRunner builds a SerialRulesRunner wired to the given
+// cache spy, discarding all log output.
+func newTokenScopedSerialRunner(options analyzer.RunnerOptions, cache analyzercache.CacheStore) analyzer.SerialRulesRunner {
+	return analyzer.NewSerialRulesRuner(
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		options,
+		cache,
+	)
+}
+
+// TestSerialRulesRunner_ProcessIssuesOneTokenScopedRead pins down the spy
+// criterion "exactly one GetMatches and at most one SaveMatches per Process
+// call": the runner reads the token's cached results once and persists the
+// evaluated negatives in one batch; no legacy per-pair call is ever issued.
+func TestSerialRulesRunner_ProcessIssuesOneTokenScopedRead(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	data := []byte("test data")
+	cache := cachemock.NewMockCacheStore(ctrl)
+	cache.EXPECT().GetMatches(gomock.Any(), data).
+		Return(map[pattern.Entity]bool{}, nil).Times(1)
+	cache.EXPECT().SaveMatches(gomock.Any(), data, map[pattern.Entity]bool{pattern.EntityEmail: false}).
+		Return(nil).Times(1)
+
+	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
+
+	rule := analyzer.Rule{
+		Name:    "non-matching-rule",
+		Matcher: newEntityMatcher(ctrl, pattern.EntityEmail, false),
+	}
+
+	matchedRule, found := runner.Process(t.Context(), []analyzer.Rule{rule}, data)
+
+	assert.False(t, found)
+	assert.Equal(t, "", matchedRule.Name)
+}
+
+// TestSerialRulesRunner_ProcessCachedHitSkipsMatcher pins down that a cached
+// hit never invokes that entity's matcher and persists nothing.
+func TestSerialRulesRunner_ProcessCachedHitSkipsMatcher(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	data := []byte("cached data")
+	cache := cachemock.NewMockCacheStore(ctrl)
+	cache.EXPECT().GetMatches(gomock.Any(), data).
+		Return(map[pattern.Entity]bool{pattern.EntityEmail: true}, nil).Times(1)
+	// No SaveMatches expectation: a cached hit evaluates and persists nothing.
+
+	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
+
+	// No EXPECT for Match — if the matcher runs, gomock fails the test.
+	mockMatcher := analyzermock.NewMockMatcher(ctrl)
+	mockMatcher.EXPECT().Entity().Return(pattern.EntityEmail).AnyTimes()
+
+	rule := analyzer.Rule{Name: "cached-rule", Matcher: mockMatcher}
+
+	matchedRule, found := runner.Process(t.Context(), []analyzer.Rule{rule}, data)
+
+	assert.True(t, found)
+	assert.Equal(t, "cached-rule", matchedRule.Name)
+}
+
+// TestSerialRulesRunner_ProcessCachedNegativeHitSkipsMatcherAndSave pins down
+// that an entity already persisted as a negative is neither re-evaluated nor
+// re-persisted.
+func TestSerialRulesRunner_ProcessCachedNegativeHitSkipsMatcherAndSave(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	data := []byte("cached data")
+	cache := cachemock.NewMockCacheStore(ctrl)
+	cache.EXPECT().GetMatches(gomock.Any(), data).
+		Return(map[pattern.Entity]bool{pattern.EntityEmail: false}, nil).Times(1)
+	// No SaveMatches expectation: the negative is already persisted.
+
+	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
+
+	// No EXPECT for Match — if the matcher runs, gomock fails the test.
+	mockMatcher := analyzermock.NewMockMatcher(ctrl)
+	mockMatcher.EXPECT().Entity().Return(pattern.EntityEmail).AnyTimes()
+
+	rule := analyzer.Rule{Name: "cached-rule", Matcher: mockMatcher}
+
+	matchedRule, found := runner.Process(t.Context(), []analyzer.Rule{rule}, data)
+
+	assert.False(t, found)
+	assert.Equal(t, "", matchedRule.Name)
+}
+
+// TestSerialRulesRunner_ProcessPartiallyCachedTokenEvaluatesOnlyAbsent pins
+// down that a partially cached token evaluates only absent entities: the cached
+// entity's matcher never runs, the absent entity is evaluated once and its
+// negative is the only persisted field.
+func TestSerialRulesRunner_ProcessPartiallyCachedTokenEvaluatesOnlyAbsent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	data := []byte("partially cached data")
+	cache := cachemock.NewMockCacheStore(ctrl)
+	cache.EXPECT().GetMatches(gomock.Any(), data).
+		Return(map[pattern.Entity]bool{pattern.EntityEmail: false}, nil).Times(1)
+	cache.EXPECT().SaveMatches(gomock.Any(), data, map[pattern.Entity]bool{pattern.EntityCPF: false}).
+		Return(nil).Times(1)
+
+	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
+
+	// Cached entity: Entity only — if Match runs, gomock fails the test.
+	cachedMatcher := analyzermock.NewMockMatcher(ctrl)
+	cachedMatcher.EXPECT().Entity().Return(pattern.EntityEmail).AnyTimes()
+
+	// Absent entity: evaluated exactly once.
+	absentMatcher := analyzermock.NewMockMatcher(ctrl)
+	absentMatcher.EXPECT().Entity().Return(pattern.EntityCPF).AnyTimes()
+	absentMatcher.EXPECT().Match(gomock.Any(), gomock.Any()).Return(false).Times(1)
+
+	rules := []analyzer.Rule{
+		{Name: "email-rule", Matcher: cachedMatcher},
+		{Name: "cpf-rule", Matcher: absentMatcher},
+	}
+
+	matchedRule, found := runner.Process(t.Context(), rules, data)
+
+	assert.False(t, found)
+	assert.Equal(t, "", matchedRule.Name)
+}
+
+// TestSerialRulesRunner_ProcessExceptedEntityNeverEvaluatedOrPersisted pins
+// down that an excepted entity is never evaluated and never persisted.
+func TestSerialRulesRunner_ProcessExceptedEntityNeverEvaluatedOrPersisted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	data := []byte("safe@company.com")
+	cache := cachemock.NewMockCacheStore(ctrl)
+	cache.EXPECT().GetMatches(gomock.Any(), data).
+		Return(map[pattern.Entity]bool{}, nil).Times(1)
+	// No SaveMatches expectation: the excepted entity is never persisted.
+
+	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
+
+	// No EXPECT for Match — the excepted entity is never evaluated.
+	mockMatcher := analyzermock.NewMockMatcher(ctrl)
+	mockMatcher.EXPECT().Entity().Return(pattern.EntityEmail).AnyTimes()
+
+	rule := analyzer.Rule{
+		Name:    "email-rule",
+		Matcher: mockMatcher,
+		Exceptions: []analyzer.Exception{
+			{
+				Reason:  "Whitelisted email",
+				Matcher: newExceptionMatcherForRunner(ctrl, "safe@company.com"),
+			},
+		},
+	}
+
+	matchedRule, found := runner.Process(t.Context(), []analyzer.Rule{rule}, data)
+
+	assert.False(t, found)
+	assert.Equal(t, "", matchedRule.Name)
+}
+
+// TestSerialRulesRunner_ProcessPositiveMatchStillFlushesNegatives pins down
+// that negatives accumulated before a positive match are still persisted in
+// the one batched save, and the positive match itself is never cached.
+func TestSerialRulesRunner_ProcessPositiveMatchStillFlushesNegatives(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	data := []byte("matching data")
+	cache := cachemock.NewMockCacheStore(ctrl)
+	cache.EXPECT().GetMatches(gomock.Any(), data).
+		Return(map[pattern.Entity]bool{}, nil).Times(1)
+	cache.EXPECT().SaveMatches(gomock.Any(), data, map[pattern.Entity]bool{pattern.EntityEmail: false}).
+		Return(nil).Times(1)
+
+	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
+
+	rules := []analyzer.Rule{
+		{Name: "non-matching-rule", Matcher: newEntityMatcher(ctrl, pattern.EntityEmail, false)},
+		{Name: "matching-rule", Matcher: newEntityMatcher(ctrl, pattern.EntityCPF, true)},
+	}
+
+	matchedRule, found := runner.Process(t.Context(), rules, data)
+
+	assert.True(t, found)
+	assert.Equal(t, "matching-rule", matchedRule.Name)
+}
+
+// TestSerialRulesRunner_ProcessBackendReadErrorDegradesToFullEvaluation pins
+// down the "Backend error during read" scenario: the runner logs the error and
+// treats every entity as a cache miss, proceeding with full evaluation — the
+// matcher still runs and its negative result is still persisted.
+func TestSerialRulesRunner_ProcessBackendReadErrorDegradesToFullEvaluation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	data := []byte("test data")
+	cache := cachemock.NewMockCacheStore(ctrl)
+	cache.EXPECT().GetMatches(gomock.Any(), data).
+		Return(nil, assert.AnError).Times(1)
+	cache.EXPECT().SaveMatches(gomock.Any(), data, map[pattern.Entity]bool{pattern.EntityEmail: false}).
+		Return(nil).Times(1)
+
+	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
+
+	// The matcher runs exactly once despite the read error: every entity is a
+	// miss, so evaluation proceeds and the negative result is persisted.
+	matcher := analyzermock.NewMockMatcher(ctrl)
+	matcher.EXPECT().Entity().Return(pattern.EntityEmail).AnyTimes()
+	matcher.EXPECT().Match(gomock.Any(), gomock.Any()).Return(false).Times(1)
+
+	rule := analyzer.Rule{
+		Name:    "non-matching-rule",
+		Matcher: matcher,
+	}
+
+	matchedRule, found := runner.Process(t.Context(), []analyzer.Rule{rule}, data)
+
+	assert.False(t, found)
+	assert.Equal(t, "", matchedRule.Name)
+}
+
+// TestSerialRulesRunner_ProcessTokenCoalescingSharesEvaluationAndSave pins
+// down the "Burst of concurrent misses on the same token" scenario with the
+// cache spy: a burst of identical misses shares one evaluation and one batched
+// save under the token-level flight.
+func TestSerialRulesRunner_ProcessTokenCoalescingSharesEvaluationAndSave(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	const callers = 10
+
+	data := []byte("burst data")
+	cache := cachemock.NewMockCacheStore(ctrl)
+	cache.EXPECT().GetMatches(gomock.Any(), data).
+		Return(map[pattern.Entity]bool{}, nil).Times(callers)
+	cache.EXPECT().SaveMatches(gomock.Any(), data, map[pattern.Entity]bool{pattern.EntityEmail: false}).
+		Return(nil).Times(1)
+
+	var computes atomic.Int32
+	matcherEntered := make(chan struct{})
+	releaseMatcher := make(chan struct{})
+	burstMatcher := pattern.NewPatternMatcher(pattern.EntityEmail, pattern.PatternFunc(func(_ context.Context, _ []byte) bool {
+		if computes.Add(1) == 1 {
+			close(matcherEntered)
+		}
+		// Hold the flight open so every caller in the burst joins it before
+		// the single computation completes.
+		<-releaseMatcher
+		return false
+	}))
+	rule := analyzer.Rule{Name: "burst-rule", Matcher: burstMatcher}
+
+	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{
+		Cache: analyzer.CacheOptions{Enabled: true, SingleflightEnabled: true},
+	}, cache)
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			runner.Process(context.Background(), []analyzer.Rule{rule}, data)
+		}()
+	}
+
+	// Release the whole burst at once. The first caller to arrive becomes the
+	// flight leader and blocks in the matcher; give the rest time to join the
+	// flight before the computation is released. The bounded wait keeps a
+	// leader that never reaches the matcher (for example a spy failure) from
+	// deadlocking the test.
+	close(start)
+	select {
+	case <-matcherEntered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the flight leader never entered the matcher; see cache spy failures above")
+	}
+	time.Sleep(50 * time.Millisecond)
+	close(releaseMatcher)
+	wg.Wait()
+
+	assert.Equal(t, int32(1), computes.Load(), "one burst on the same token must evaluate the missing entity exactly once")
 }
 
 func TestSerialRulesRunner_ProcessMultipleCalls(t *testing.T) {

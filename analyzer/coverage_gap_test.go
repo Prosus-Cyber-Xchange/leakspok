@@ -227,19 +227,21 @@ func TestByteAnalyzer_WriteToOutputErrorPath(t *testing.T) {
 
 // ─── SerialRulesRunner.Process cache hit (positive match) ────────────────────
 
-// prePopulatedCache wraps a NoopRuleMatchingCache but can return a pre-set match.
+// prePopulatedCache wraps a NoopRuleMatchingCache but returns one pre-set
+// token-scoped result on the first GetMatches call, so cached-hit behavior can
+// be observed without a real backend.
 type prePopulatedCache struct {
 	analyzercache.CacheStore
 	matchResult   bool
 	matchReturned bool
 }
 
-func (p *prePopulatedCache) GetMatch(ctx context.Context, entity pattern.Entity, data []byte) (bool, error) {
+func (p *prePopulatedCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
 	if !p.matchReturned {
 		p.matchReturned = true
-		return p.matchResult, nil
+		return map[pattern.Entity]bool{pattern.EntityEmail: p.matchResult}, nil
 	}
-	return false, analyzercache.ErrCacheNotFound
+	return map[pattern.Entity]bool{}, nil
 }
 
 func TestSerialRulesRunner_ProcessCachePositiveHit(t *testing.T) {
@@ -257,7 +259,7 @@ func TestSerialRulesRunner_ProcessCachePositiveHit(t *testing.T) {
 		cache,
 	)
 
-	// Entity() is called by cache.GetMatch for key construction, but Match() should NOT be called.
+	// The token-scoped read returns a cached positive result; Match() should NOT be called.
 	mockMatcher := analyzermock.NewMockMatcher(ctrl)
 	mockMatcher.EXPECT().Entity().Return(pattern.EntityEmail).AnyTimes()
 	// No EXPECT for Match — if Match is called, gomock will fail the test.
@@ -287,8 +289,8 @@ func TestSerialRulesRunner_ProcessCacheNegativeHitIsSkipped(t *testing.T) {
 		cache,
 	)
 
-	// When cache returns a negative hit (matched=false, nil error), the rule
-	// is skipped — Match is never called but Entity is called for cache key.
+	// The token-scoped read returns a cached negative hit (matched=false), the
+	// rule is skipped — Match is never called.
 	mockMatcher := analyzermock.NewMockMatcher(ctrl)
 	mockMatcher.EXPECT().Entity().Return(pattern.EntityEmail).AnyTimes()
 	// No EXPECT on Match — if called, gomock will fail.
@@ -742,13 +744,13 @@ func TestMakeByteAnalyzer_ValkeyConfigMutator(t *testing.T) {
 // TestMakeByteAnalyzer_TTLJitterPercentageInBand proves end-to-end that a
 // TTLJitterPercentage set through the public analyzer cache configuration path
 // (analyzer.CacheOptions.TTLJitterPercentage) reaches the rule-matching cache
-// and jitters the SET PX written on a negative result. A disposable single-node
-// Valkey server is used, a real negative-result write happens during Anonymize,
-// and a separate inspection client reads the key's PTTL. The raw PTTL is
-// compensated with the time elapsed since the write because PTTL only decays,
-// mirroring the cache-level jitter tests; the ±15% band on a 30s base TTL is
-// 9000 ms wide, so ms-scale decay and integer rounding cannot affect the
-// assertion.
+// and jitters the TTL established on the token hash written with a negative
+// result. A disposable single-node Valkey server is used, a real negative-result
+// write happens during Anonymize, and a separate inspection client reads the
+// token hash key's PTTL. The raw PTTL is compensated with the time elapsed since
+// the write because PTTL only decays, mirroring the cache-level jitter tests;
+// the ±15% band on a 30s base TTL is 9000 ms wide, so ms-scale decay and integer
+// rounding cannot affect the assertion.
 func TestMakeByteAnalyzer_TTLJitterPercentageInBand(t *testing.T) {
 	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
@@ -784,15 +786,18 @@ func TestMakeByteAnalyzer_TTLJitterPercentageInBand(t *testing.T) {
 	}
 
 	// A plain, single-token input does not match the email rule, so the runner
-	// writes one negative result under "EMAIL:<token>". Record the write time so
-	// the PTTL read can be compensated for decay.
+	// persists one negative batch under the token hash "leakspok:m:<token>"
+	// (namespace owned by the Valkey adapter, analyzer/cache/valkey.go; tests
+	// reference the literal only to observe server-side state) whose EXPIRE NX
+	// establishes the jittered TTL. Record the write time so the PTTL read can
+	// be compensated for decay.
 	savedAt := time.Now()
 	out := &bytes.Buffer{}
 	details := ba.Anonymize(ctx, rules, out, []byte(input))
 	assert.False(t, details.HasFindings)
 	assert.Equal(t, input, out.String())
 
-	key := string(pattern.EntityEmail) + ":" + input
+	key := "leakspok:m:" + input
 
 	inspector, err := valkey.NewClient(valkey.ClientOption{
 		InitAddress:       []string{addr},

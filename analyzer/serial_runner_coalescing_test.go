@@ -15,9 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// countingCache is a CacheStore test fake. GetMatch always reports a cache
-// miss; SaveMatch records how many saves were issued and can be configured to
-// fail with saveErr.
+// countingCache is a CacheStore test fake. The token-scoped read reports an
+// empty map (every entity a miss) and SaveMatches records how many saves were
+// issued and can be configured to fail with saveErr. Both save methods count:
+// the serial runner persists through SaveMatches, while the concurrent runner
+// still persists per pair through SaveMatch until its token-scoped flow lands
+// (Task 3 reworks those tests alongside that flow).
 type countingCache struct {
 	mu      sync.Mutex
 	saves   int
@@ -29,7 +32,6 @@ func (c *countingCache) GetMatch(_ context.Context, _ pattern.Entity, _ []byte) 
 }
 
 func (c *countingCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
-	// Nothing cached: every entity is a miss, mirroring GetMatch.
 	return map[pattern.Entity]bool{}, nil
 }
 
@@ -53,8 +55,8 @@ func (c *countingCache) saveCount() int {
 	return c.saves
 }
 
-// cachedFalseCache is a CacheStore test fake whose GetMatch returns a cached
-// false result, so the matcher must never run.
+// cachedFalseCache is a CacheStore test fake whose token-scoped read returns a
+// cached negative result for EntityEmail, so the matcher must never run.
 type cachedFalseCache struct{}
 
 func (cachedFalseCache) GetMatch(_ context.Context, _ pattern.Entity, _ []byte) (bool, error) {
@@ -62,9 +64,7 @@ func (cachedFalseCache) GetMatch(_ context.Context, _ pattern.Entity, _ []byte) 
 }
 
 func (cachedFalseCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
-	// The cached-false semantics stay on GetMatch, which the runners still call
-	// until the token-scoped flow lands; token-scoped reads report nothing.
-	return map[pattern.Entity]bool{}, nil
+	return map[pattern.Entity]bool{pattern.EntityEmail: false}, nil
 }
 
 func (cachedFalseCache) SaveMatch(_ context.Context, _ pattern.Entity, _ []byte, _ bool) error {
