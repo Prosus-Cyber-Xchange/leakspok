@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"net"
 	"strings"
@@ -13,6 +14,11 @@ import (
 	"github.com/Prosus-Cyber-Xchange/leakspok/pattern"
 	"github.com/valkey-io/valkey-go"
 )
+
+// matchKeyNamespace prefixes every token hash key. It marks the token-hash data
+// layout and prevents collisions with other applications sharing the backend;
+// the encoding lives only in this adapter.
+const matchKeyNamespace = "leakspok:m:"
 
 // RuleMatchingCache caches rule matching results using valkey-go.
 //
@@ -97,6 +103,13 @@ func (r *RuleMatchingCache) jitteredTTL() time.Duration {
 	return r.cacheTTL + delta
 }
 
+// useClientSideCache reports whether reads may be served from the process-local
+// client-side cache: it requires CSC to be enabled and a positive base TTL for
+// the jittered local expiry.
+func (r *RuleMatchingCache) useClientSideCache() bool {
+	return !r.disableCSC && r.cacheTTL > 0
+}
+
 // GetMatch retrieves a cached rule matching result.
 // Uses DoCache for client-side caching unless disabled; falls back to Do otherwise.
 // Auto pipelining coalesces concurrent calls into a single network round-trip.
@@ -105,7 +118,7 @@ func (r *RuleMatchingCache) GetMatch(ctx context.Context, entity pattern.Entity,
 
 	var result valkey.ValkeyResult
 
-	if r.disableCSC || r.cacheTTL == 0 {
+	if !r.useClientSideCache() {
 		result = r.client.Do(ctx, r.client.B().Get().Key(key).Build())
 	} else {
 		result = r.client.DoCache(ctx, r.client.B().Get().Key(key).Cache(), r.jitteredTTL())
@@ -141,6 +154,108 @@ func (r *RuleMatchingCache) SaveMatch(ctx context.Context, entity pattern.Entity
 	}
 
 	return r.client.Do(ctx, cmd).Error()
+}
+
+// matchKey encodes a token's hash key: the token content under the namespace.
+func matchKey(data []byte) string {
+	return matchKeyNamespace + string(data)
+}
+
+// GetMatches retrieves every rule-matching result stored for the token's hash
+// with a single HGETALL command, using DoCache for client-side caching when it
+// is enabled and the base TTL is positive, and plain Do otherwise. An empty
+// hash yields an empty map and a nil error: nothing is cached for the token.
+func (r *RuleMatchingCache) GetMatches(ctx context.Context, data []byte) (map[pattern.Entity]bool, error) {
+	key := matchKey(data)
+
+	var result valkey.ValkeyResult
+
+	if !r.useClientSideCache() {
+		result = r.client.Do(ctx, r.client.B().Hgetall().Key(key).Build())
+	} else {
+		result = r.client.DoCache(ctx, r.client.B().Hgetall().Key(key).Cache(), r.jitteredTTL())
+	}
+
+	fields, err := result.AsMap()
+	if err != nil {
+		return nil, err
+	}
+
+	results := make(map[pattern.Entity]bool, len(fields))
+	for field, message := range fields {
+		value, err := message.ToString()
+		if err != nil {
+			return nil, err
+		}
+		results[pattern.Entity(field)] = value == "1"
+	}
+
+	return results, nil
+}
+
+// SaveMatches persists a batch of rule-matching results for the token's hash in
+// a single multi-field HSET. When the base TTL is positive the HSET is issued
+// together with EXPIRE NX in one DoMulti, establishing the jittered TTL exactly
+// once at the key's first write while existing expiries are never extended; a
+// zero base TTL writes the hash without expiry. An empty batch is a no-op.
+func (r *RuleMatchingCache) SaveMatches(ctx context.Context, data []byte, results map[pattern.Entity]bool) error {
+	if len(results) == 0 {
+		return nil
+	}
+
+	key := matchKey(data)
+
+	hset := r.client.B().Hset().Key(key).FieldValue()
+	for entity, matched := range results {
+		value := "0"
+		if matched {
+			value = "1"
+		}
+		hset = hset.FieldValue(string(entity), value)
+	}
+
+	if r.cacheTTL == 0 {
+		return r.client.Do(ctx, hset.Build()).Error()
+	}
+
+	resp := r.client.DoMulti(ctx,
+		hset.Build(),
+		r.client.B().Expire().Key(key).Seconds(r.expireSeconds()).Nx().Build(),
+	)
+	if err := resp[0].Error(); err != nil {
+		return err
+	}
+
+	return resp[1].Error()
+}
+
+// expireSeconds converts the jittered base TTL into whole seconds for the
+// EXPIRE command, clamped into the jitter band [base×(1−P), base×(1+P)] so the
+// second-granularity command cannot fall outside it. Callers already guard the
+// no-expiry case (CacheTTL == 0) before calling.
+func (r *RuleMatchingCache) expireSeconds() int64 {
+	seconds := int64(math.Round(r.jitteredTTL().Seconds()))
+
+	lower := int64(math.Ceil(float64(r.cacheTTL) * (1 - r.jitterPct) / float64(time.Second)))
+	upper := int64(math.Floor(float64(r.cacheTTL) * (1 + r.jitterPct) / float64(time.Second)))
+
+	// Second granularity may round the jittered TTL just outside the band; the
+	// clamps put it back in. When the band holds no whole second (sub-second
+	// base TTLs), lower exceeds upper and the clamps collapse onto the nearest
+	// representable second.
+	if seconds < lower {
+		seconds = lower
+	}
+	if seconds > upper {
+		seconds = upper
+	}
+
+	// EXPIRE 0 deletes the key immediately; that must never happen.
+	if seconds < 1 {
+		seconds = 1
+	}
+
+	return seconds
 }
 
 // key generates a cache key in "entity:data" format, reusing a sync.Pool buffer.

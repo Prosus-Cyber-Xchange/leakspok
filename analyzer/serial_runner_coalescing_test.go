@@ -28,7 +28,19 @@ func (c *countingCache) GetMatch(_ context.Context, _ pattern.Entity, _ []byte) 
 	return false, analyzercache.ErrCacheNotFound
 }
 
+func (c *countingCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
+	// Nothing cached: every entity is a miss, mirroring GetMatch.
+	return map[pattern.Entity]bool{}, nil
+}
+
 func (c *countingCache) SaveMatch(_ context.Context, _ pattern.Entity, _ []byte, _ bool) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.saves++
+	return c.saveErr
+}
+
+func (c *countingCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.saves++
@@ -49,7 +61,17 @@ func (cachedFalseCache) GetMatch(_ context.Context, _ pattern.Entity, _ []byte) 
 	return false, nil
 }
 
+func (cachedFalseCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
+	// The cached-false semantics stay on GetMatch, which the runners still call
+	// until the token-scoped flow lands; token-scoped reads report nothing.
+	return map[pattern.Entity]bool{}, nil
+}
+
 func (cachedFalseCache) SaveMatch(_ context.Context, _ pattern.Entity, _ []byte, _ bool) error {
+	return nil
+}
+
+func (cachedFalseCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {
 	return nil
 }
 

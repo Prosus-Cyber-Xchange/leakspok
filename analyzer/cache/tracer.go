@@ -37,3 +37,23 @@ func (c *CacheStoreTracer) SaveMatch(ctx context.Context, entity pattern.Entity,
 
 	return c.underlying.SaveMatch(newCtx, entity, data, matched)
 }
+
+// GetMatches starts a DataDog trace span and delegates to the underlying cache,
+// forwarding the span-bearing context so the token-scoped cache operation
+// nests under the span.
+func (c *CacheStoreTracer) GetMatches(ctx context.Context, data []byte) (map[pattern.Entity]bool, error) {
+	newCtx, finish := monitoring.TraceCacheGetMatches(ctx, string(data))
+	defer finish()
+
+	return c.underlying.GetMatches(newCtx, data)
+}
+
+// SaveMatches starts a DataDog trace span and delegates to the underlying cache,
+// forwarding the span-bearing context so the token-scoped cache operation
+// nests under the span.
+func (c *CacheStoreTracer) SaveMatches(ctx context.Context, data []byte, results map[pattern.Entity]bool) error {
+	newCtx, finish := monitoring.TraceCacheSaveMatches(ctx, string(data))
+	defer finish()
+
+	return c.underlying.SaveMatches(newCtx, data, results)
+}

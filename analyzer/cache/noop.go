@@ -25,3 +25,13 @@ func (r NoopRuleMatchingCache) GetMatch(_ context.Context, _ pattern.Entity, _ [
 func (r NoopRuleMatchingCache) SaveMatch(_ context.Context, _ pattern.Entity, _ []byte, _ bool) error {
 	return nil
 }
+
+// GetMatches always returns an empty map: every entity is a cache miss.
+func (r NoopRuleMatchingCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
+	return map[pattern.Entity]bool{}, nil
+}
+
+// SaveMatches always returns nil, silently discarding the batch.
+func (r NoopRuleMatchingCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {
+	return nil
+}

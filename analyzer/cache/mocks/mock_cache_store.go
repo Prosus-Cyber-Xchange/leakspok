@@ -56,6 +56,21 @@ func (mr *MockCacheStoreMockRecorder) GetMatch(ctx, entity, data any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMatch", reflect.TypeOf((*MockCacheStore)(nil).GetMatch), ctx, entity, data)
 }
 
+// GetMatches mocks base method.
+func (m *MockCacheStore) GetMatches(ctx context.Context, data []byte) (map[pattern.Entity]bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMatches", ctx, data)
+	ret0, _ := ret[0].(map[pattern.Entity]bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMatches indicates an expected call of GetMatches.
+func (mr *MockCacheStoreMockRecorder) GetMatches(ctx, data any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMatches", reflect.TypeOf((*MockCacheStore)(nil).GetMatches), ctx, data)
+}
+
 // SaveMatch mocks base method.
 func (m *MockCacheStore) SaveMatch(ctx context.Context, entity pattern.Entity, data []byte, matched bool) error {
 	m.ctrl.T.Helper()
@@ -68,4 +83,18 @@ func (m *MockCacheStore) SaveMatch(ctx context.Context, entity pattern.Entity, d
 func (mr *MockCacheStoreMockRecorder) SaveMatch(ctx, entity, data, matched any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveMatch", reflect.TypeOf((*MockCacheStore)(nil).SaveMatch), ctx, entity, data, matched)
+}
+
+// SaveMatches mocks base method.
+func (m *MockCacheStore) SaveMatches(ctx context.Context, data []byte, results map[pattern.Entity]bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SaveMatches", ctx, data, results)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SaveMatches indicates an expected call of SaveMatches.
+func (mr *MockCacheStoreMockRecorder) SaveMatches(ctx, data, results any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveMatches", reflect.TypeOf((*MockCacheStore)(nil).SaveMatches), ctx, data, results)
 }

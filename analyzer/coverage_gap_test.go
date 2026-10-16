@@ -385,7 +385,15 @@ func (e *errorCache) GetMatch(ctx context.Context, entity pattern.Entity, data [
 	return false, assert.AnError
 }
 
+func (e *errorCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
+	return nil, assert.AnError
+}
+
 func (e *errorCache) SaveMatch(ctx context.Context, entity pattern.Entity, data []byte, matched bool) error {
+	return nil
+}
+
+func (e *errorCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {
 	return nil
 }
 
@@ -437,7 +445,17 @@ func (s *singleHitCache) GetMatch(ctx context.Context, entity pattern.Entity, da
 	return false, analyzercache.ErrCacheNotFound
 }
 
+func (s *singleHitCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
+	// The single-hit semantics stay on GetMatch, which the runners still call
+	// until the token-scoped flow lands; token-scoped reads report nothing.
+	return map[pattern.Entity]bool{}, nil
+}
+
 func (s *singleHitCache) SaveMatch(ctx context.Context, entity pattern.Entity, data []byte, matched bool) error {
+	return nil
+}
+
+func (s *singleHitCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {
 	return nil
 }
 
