@@ -17,10 +17,9 @@ import (
 
 // countingCache is a CacheStore test fake. The token-scoped read reports an
 // empty map (every entity a miss) and SaveMatches records how many saves were
-// issued and can be configured to fail with saveErr. Both save methods count:
-// the serial runner persists through SaveMatches, while the concurrent runner
-// still persists per pair through SaveMatch until its token-scoped flow lands
-// (Task 3 reworks those tests alongside that flow).
+// issued and can be configured to fail with saveErr. The legacy per-pair
+// methods satisfy the CacheStore interface but stay uncounted: both runners
+// persist exclusively through the batched token-scoped save.
 type countingCache struct {
 	mu      sync.Mutex
 	saves   int
@@ -36,10 +35,7 @@ func (c *countingCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Ent
 }
 
 func (c *countingCache) SaveMatch(_ context.Context, _ pattern.Entity, _ []byte, _ bool) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.saves++
-	return c.saveErr
+	return nil
 }
 
 func (c *countingCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {

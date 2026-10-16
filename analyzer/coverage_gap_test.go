@@ -378,7 +378,7 @@ func TestStringAnalyzer_Stop(t *testing.T) {
 	sa.Stop()
 }
 
-// ─── ConcurrentRulesRunner processRule cache error path ──────────────────────
+// ─── ConcurrentRulesRunner cache read error path ──────────────────────
 
 // errorCache returns an error on every GetMatch call.
 type errorCache struct{}
@@ -425,41 +425,14 @@ func TestConcurrentRulesRunner_ProcessRuleCacheError(t *testing.T) {
 		Matcher: newMatchingMatcher(ctrl),
 	}
 
-	// The processRule will log the cache error but still evaluate the matcher.
+	// The token-scoped read fails, so the runner logs the error, degrades to
+	// full evaluation, and the matcher still runs.
 	matchedRule, found := runner.Process(t.Context(), []analyzer.Rule{rule}, []byte("test data"))
 	assert.True(t, found)
 	assert.Equal(t, "rule", matchedRule.Name)
 }
 
-// ─── processRule cache positive hit path ────────────────────────────────────
-
-// singleHitCache returns a positive match exactly once, then reverts to not-found.
-type singleHitCache struct {
-	hit  bool
-	used bool
-}
-
-func (s *singleHitCache) GetMatch(ctx context.Context, entity pattern.Entity, data []byte) (bool, error) {
-	if !s.used {
-		s.used = true
-		return s.hit, nil
-	}
-	return false, analyzercache.ErrCacheNotFound
-}
-
-func (s *singleHitCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
-	// The single-hit semantics stay on GetMatch, which the runners still call
-	// until the token-scoped flow lands; token-scoped reads report nothing.
-	return map[pattern.Entity]bool{}, nil
-}
-
-func (s *singleHitCache) SaveMatch(ctx context.Context, entity pattern.Entity, data []byte, matched bool) error {
-	return nil
-}
-
-func (s *singleHitCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {
-	return nil
-}
+// ─── concurrent runner cache hit (token-scoped read) ────────────────────────────────────
 
 func TestConcurrentRulesRunner_ProcessRuleCachePositiveHit(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -469,7 +442,10 @@ func TestConcurrentRulesRunner_ProcessRuleCachePositiveHit(t *testing.T) {
 	pool, err := analyzer.NewAntsWorkerPool(2, logger)
 	require.NoError(t, err)
 
-	cache := &singleHitCache{hit: true}
+	cache := &prePopulatedCache{
+		CacheStore:  analyzercache.NewNoopRuleMatchingCache(),
+		matchResult: true,
+	}
 	runner := analyzer.NewConcurrentRulesRunner(
 		logger,
 		analyzer.RunnerOptions{
@@ -483,7 +459,7 @@ func TestConcurrentRulesRunner_ProcessRuleCachePositiveHit(t *testing.T) {
 	)
 	defer runner.Stop()
 
-	// Entity() is called by cache.GetMatch for key construction, but Match() should NOT be called.
+	// The token-scoped read returns a cached positive result; Match() should NOT be called.
 	mockMatcher := analyzermock.NewMockMatcher(ctrl)
 	mockMatcher.EXPECT().Entity().Return(pattern.EntityEmail).AnyTimes()
 	// No EXPECT for Match — if Match is called, gomock will fail.
@@ -506,7 +482,10 @@ func TestConcurrentRulesRunner_ProcessRuleCacheNegativeHitIsSkipped(t *testing.T
 	pool, err := analyzer.NewAntsWorkerPool(2, logger)
 	require.NoError(t, err)
 
-	cache := &singleHitCache{hit: false}
+	cache := &prePopulatedCache{
+		CacheStore:  analyzercache.NewNoopRuleMatchingCache(),
+		matchResult: false,
+	}
 	runner := analyzer.NewConcurrentRulesRunner(
 		logger,
 		analyzer.RunnerOptions{
@@ -520,8 +499,8 @@ func TestConcurrentRulesRunner_ProcessRuleCacheNegativeHitIsSkipped(t *testing.T
 	)
 	defer runner.Stop()
 
-	// When cache returns a negative hit (matched=false, nil error), the rule is
-	// skipped — Match is never called.
+	// When the token-scoped read returns a cached negative hit (matched=false),
+	// the rule is skipped — Match is never called.
 	mockMatcher := analyzermock.NewMockMatcher(ctrl)
 	mockMatcher.EXPECT().Entity().Return(pattern.EntityEmail).AnyTimes()
 	// No EXPECT on Match — if called, gomock will fail.

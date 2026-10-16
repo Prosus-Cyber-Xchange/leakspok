@@ -15,10 +15,6 @@ type singleflightCoalescer struct {
 	group singleflight.Group
 }
 
-type singleflightDoer interface {
-	do(ctx context.Context, key string, fn func() (bool, error)) (bool, error)
-}
-
 // tokenFlightDoer coalesces token-scoped computations across concurrent
 // callers: one flight per token shares the evaluated results and the batched
 // save error.
@@ -28,20 +24,12 @@ type tokenFlightDoer interface {
 
 type disabledSingleflightCoalescer struct{}
 
-func (disabledSingleflightCoalescer) do(_ context.Context, _ string, fn func() (bool, error)) (bool, error) {
-	return fn()
-}
-
 func (disabledSingleflightCoalescer) doToken(_ context.Context, _ string, fn func() (map[pattern.Entity]bool, error)) (map[pattern.Entity]bool, error) {
 	return fn()
 }
 
 func newSingleflightCoalescer() *singleflightCoalescer {
 	return &singleflightCoalescer{}
-}
-
-func singleflightKey(entity string, data []byte) string {
-	return entity + ":" + string(data)
 }
 
 // tokenFlightKey builds the token-scoped flight key: identical concurrent
@@ -75,15 +63,8 @@ func doShared[T any](ctx context.Context, group *singleflight.Group, key string,
 	}
 }
 
-// do runs fn once per key among concurrent callers and shares its result. A
-// caller whose context is cancelled while waiting returns ctx.Err() without
-// running fn.
-func (c *singleflightCoalescer) do(ctx context.Context, key string, fn func() (bool, error)) (bool, error) {
-	return doShared(ctx, &c.group, key, fn)
-}
-
-// doToken is the token-scoped variant of do: it shares the computation result
-// map and the batched-save error among concurrent callers of the same token.
+// doToken shares the computation result map and the batched-save error among
+// concurrent callers of the same token.
 // A caller whose context is cancelled while waiting returns (nil, ctx.Err())
 // without running fn.
 func (c *singleflightCoalescer) doToken(ctx context.Context, key string, fn func() (map[pattern.Entity]bool, error)) (map[pattern.Entity]bool, error) {
