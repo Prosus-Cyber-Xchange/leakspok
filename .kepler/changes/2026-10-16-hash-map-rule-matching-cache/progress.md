@@ -21,6 +21,14 @@ tasks:
     title: "Remove the legacy per-pair cache contract"
     status: pending
     progress: tasks/task-4/progress.md
+  - id: 5
+    title: "Untrack the stray coordination artifact"
+    status: pending
+    progress: tasks/task-5/progress.md
+  - id: 6
+    title: "Tag cache spans with a token digest instead of raw token text"
+    status: pending
+    progress: tasks/task-6/progress.md
 ---
 
 # Progress: Token-Hash Data Layout for the Rule-Matching Cache
@@ -31,3 +39,5 @@ tasks:
 | Task 2: Route the serial runner through token-scoped evaluation | pending | [details](tasks/task-2/progress.md) |
 | Task 3: Route the concurrent runner through token-scoped evaluation | pending | [details](tasks/task-3/progress.md) |
 | Task 4: Remove the legacy per-pair cache contract | pending | [details](tasks/task-4/progress.md) |
+| Task 5: Untrack the stray coordination artifact | pending | [details](tasks/task-5/progress.md) |
+| Task 6: Tag cache spans with a token digest instead of raw token text | pending | [details](tasks/task-6/progress.md) |

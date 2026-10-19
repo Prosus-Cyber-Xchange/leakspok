@@ -7,6 +7,7 @@ author: Caio Cavalcante <caio.cavalcante@ifood.com.br>
 decision: accepted
 execution: {version: 2, mode: dependencies}
 route_unit: null
+input_impact: {"version":1,"previousPlanCommit":"f589f25d40afab9b3ae515eced42a4a66b220301","reviewReference":"01a15408-5884-70b4-bb82-daec2f8685dd impact-review: sound","changes":[{"path":".kepler/changes/2026-10-16-hash-map-rule-matching-cache/design.md","previousBlob":"eb9c20a068f02f63698193f547ac91804748332a","currentBlob":"f32300c574d00600c256b3a494d3e6a8df07d89f","affectedTasks":[],"unaffectedTasks":[1,2,3,4],"newTasks":[5,6],"unresolvedIntent":false,"rationale":"Whole-branch review pass-1-blocking-2 (intent-defect): the approved tracer decision tagged spans with raw token text (PII channel into APM). Requester approved the revised digest-prefix decision at 4a49fb70e8080bbd486a44745020624b828135e9 before this record was committed. Tasks 1-4 are complete and frozen with fresh approved feedback; their implementations and approvals stand (no acceptance criterion pins the tag value). The correction obligation is new work: Task 6 applies the digest-prefix tag; Task 5 remediates the separate pass-1-blocking-1 code-defect (untrack .pi/artifacts/TODO.md) and is a transparent coordination append to this record. Impact classification independently adjudicated sound."}]}
 intent_approvals:
   - path: proposal.md
     reference: "Requester (Caio Cavalcante) approved the exact candidate bytes in the planning session on 2026-10-16 ('Approve as written')"
@@ -15,13 +16,13 @@ intent_approvals:
     reference: "Requester (Caio Cavalcante) approved the exact candidate bytes in the planning session on 2026-10-16 ('Approve as written')"
     commit: 2269fc9c1b0471ca2e87bf4dce004a58f1239865
   - path: design.md
-    reference: "Requester (Caio Cavalcante) approved the exact candidate bytes in the planning session on 2026-10-16 ('Approve as written')"
-    commit: 2269fc9c1b0471ca2e87bf4dce004a58f1239865
+    reference: "Requester (Caio Cavalcante) approved the revised tracer decision bytes in the orchestration session on 2026-10-16 ('Approve revision'; remediation of whole-branch review pass-1-blocking-2)"
+    commit: 4a49fb70e8080bbd486a44745020624b828135e9
 initialization:
   version: 1
   base: 2269fc9c1b0471ca2e87bf4dce004a58f1239865
   authority: "Requester (Caio Cavalcante) confirmed the task breakdown in the planning session on 2026-10-16 ('Approve breakdown'); intent authority recorded in intent_approvals"
-  breakdown: bf1981e49393cba5f9533fe56851c5f075bd501b8c246d9f0e0527182746495b
+  breakdown: c9c0f017cffdaa7b864480c7ce7567db055b62f65307e5a73710fb4abd1c21ce
   taskIds: [1, 2, 3, 4]
 ---
 
@@ -37,7 +38,9 @@ initialization:
 - Deferred verification: full `go test ./...` and `task lint` run in later workflow stages, not in task Verify.
 - Context notes: project standards in AGENTS.md (commands, boundaries — `task gen` regenerates mocks via `mockgen -destination=mocks/mock_cache_store.go -package=cachemock github.com/Prosus-Cyber-Xchange/leakspok/analyzer/cache CacheStore`); architecture and flow live in design.md; canonical invariants live in .kepler/specs/rule-matching-cache.md. Vendored valkey-go v1.0.75 supports Cacheable HGETALL (`HgetallKey.Cache()`), multi-field HSET, and `ExpireConditionNx` (verified under vendor/github.com/valkey-io/valkey-go/internal/cmds/). Container-backed cache tests have no `-short` guard and require Docker; when Docker is unavailable the worker records the environment outcome instead of claiming success. Task-definition digests in each task's Notes computed by kepler over each task block excluding non-fenced Notes-JSON lines, joined with newlines and right-trimmed; the breakdown digest hashes the `## Tasks` section as committed.
 - Quality notes: tasks follow the design's seams — adapter storage (Task 1), serial flow (Task 2), concurrent flow (Task 3), legacy removal (Task 4); each lands one cohesive unit testable in isolation through the CacheStore port (spy mock or Testcontainers backend); no structural smell is accepted.
-- Intent approvals: proposal.md, requirements/rule-matching-cache.md, and design.md — each approved by the requester (Caio Cavalcante) in the planning session on 2026-10-16 ('Approve as written'), committed at 2269fc9c1b0471ca2e87bf4dce004a58f1239865; see frontmatter `intent_approvals`.
+- Intent approvals: proposal.md, requirements/rule-matching-cache.md — approved 2026-10-16 at 2269fc9c1b0471ca2e87bf4dce004a58f1239865; design.md — originally approved at 2269fc9c1b0471ca2e87bf4dce004a58f1239865, revised and re-approved at 4a49fb70e8080bbd486a44745020624b828135e9 ('Approve revision'; remediation of whole-branch review pass-1-blocking-2); see frontmatter `intent_approvals`.
+- Input impact review: 01a15408-5884-70b4-bb82-daec2f8685dd impact-review: sound
+- Input impact previous plan: f589f25d40afab9b3ae515eced42a4a66b220301
 
 ## Tasks
 
@@ -128,6 +131,52 @@ initialization:
   4. If a phase fails for the wrong reason, Verify fails, or feedback is `changes-requested`, record the correction and repeat Red → Green → Refactor with relevant verification in this task; block for re-plan if the correction exceeds Acceptance or approved intent; Files is optional guidance.
 - Verify: the grep reference count is zero; `go test ./analyzer/...` (container-backed tests require Docker — record the environment outcome) and fresh LSP diagnostics over analyzer/ and monitoring/ → no references, tests pass, no LSP errors.
 - Commit: `refactor(cache): remove legacy per-pair cache contract`
+
+### Task 5: Untrack the stray coordination artifact
+
+- Goal: `.pi/artifacts/TODO.md` — a stale, malformed coordination-state file swept into tracking by the init commit c47f9aa and classified pass-1-blocking-1 (code-defect) by the whole-branch review — is removed from Git tracking and prevented from re-entering, with no other path affected. The whole-branch review gate blocks on this remediation, which is why it exists.
+- Depends on: none
+- Files: optional guidance
+  - Created: none
+  - Modified: .gitignore (append a `.pi/` ignore entry)
+  - Deleted: `.pi/artifacts/TODO.md` from the index (the file stays on disk — it is the todo tool's live state)
+- Acceptance:
+  - `git ls-files .pi` returns no paths. The alternative Red records the count (>0) before the removal: a conventional failing behavioral check is technically impossible for an untracking remediation because there is no runtime behavior to observe.
+  - `git check-ignore -q .pi/artifacts/TODO.md` succeeds (the ignore entry prevents re-adding).
+  - `git status --short` is clean after the commit and no other path changed.
+  - Quality constraints: single responsibility — the task touches only the stray artifact's tracking state (whole-branch review pass-1-blocking-1); zero behavior change.
+  - Decision context: whole-branch review Pass 1 (commit ca2abf5) classification and correction instruction "remove from tracking"; kepler-init treats `.pi/` as tool-local state that is never project-tracked.
+- Notes: {"version":1,"repository":"/Users/caio.cavalcante/workspace/ifood/ai-security/prosus-cyber-xchange/leakspok/.worktrees/hash-map-rule-matching-cache","taskDefinition":"18277f6d84de0bd0fe73c4bbefb3eb8b2e7831a5cc424e8b6e66b53caf539c58","intentCommit":"4a49fb70e8080bbd486a44745020624b828135e9","inputs":[{"path":"AGENTS.md","blob":"5306df3ceaa1f6629d40d356dc8dda62ecbe4885"}]}
+- Steps:
+  1. Red — run `git ls-files .pi | wc -l` and record the count (>0) before production edits; record the technical reason (pure untracking remediation, no runtime behavior) for the alternative.
+  2. Green — append `.pi/` to .gitignore; `git rm --cached .pi/artifacts/TODO.md`; rerun `git ls-files .pi` (empty) and `git check-ignore -q .pi/artifacts/TODO.md` (succeeds).
+  3. Refactor — none needed beyond the removal; record the decision; rerun `git status --short` (clean) and `git show --stat` (no other path changed).
+  4. If a phase fails for the wrong reason, Verify fails, or feedback is `changes-requested`, record the correction and repeat Red → Green → Refactor with relevant verification in this task; block for re-plan if the correction exceeds Acceptance or approved intent; Files is optional guidance.
+- Verify: `git ls-files .pi` empty, `git check-ignore -q .pi/artifacts/TODO.md` succeeds, `git status --short` clean; LSP diagnostics are not applicable (no Go files changed) — record why.
+- Commit: `chore: untrack stray coordination artifact from init commit` — include the task-local progress record in the same commit.
+
+### Task 6: Tag cache spans with a token digest instead of raw token text
+
+- Goal: remediate whole-branch review pass-1-blocking-2 (intent-defect): cache spans tag `cache.token` with a short non-reversible SHA-256 digest prefix of the token — never raw token text — per the revised approved design decision at 4a49fb7. The current implementation tags raw token content (unsanitized PII candidates from the tokenizer) into DataDog APM.
+- Depends on: none
+- Files: optional guidance
+  - Created: none
+  - Modified: monitoring/cache.go (digest-prefix computation in TraceCacheGetMatches/TraceCacheSaveMatches), monitoring/tracing_test.go or a new monitoring test asserting the tag contract, analyzer/cache/rule_matching_cache_token_test.go (only if its tracer-delegation tests pin raw tag values)
+  - Deleted: none
+- Acceptance:
+  - The `cache.token` tag value equals the first 12 hex characters of SHA-256(token) and never contains the raw token text (a test asserts both directions).
+  - Span granularity is unchanged: one read span and one write span per token-scoped operation (the revised design decision preserves it).
+  - `go test ./monitoring/ -count=1` and the Task 1 tracer-delegation tests pass; LSP clean over monitoring/cache.go and affected test files.
+  - Quality constraints: DRY — the digest computation lives only in monitoring (design.md, Ports & Adapters: monitoring owns span helpers); the adapter passes the token and knows nothing of the digest (boundary preserved).
+  - Decision context: revised approved design decision (commit 4a49fb7, requester "Approve revision" 2026-10-16); whole-branch review pass-1-blocking-2.
+- Notes: {"version":1,"repository":"/Users/caio.cavalcante/workspace/ifood/ai-security/prosus-cyber-xchange/leakspok/.worktrees/hash-map-rule-matching-cache","taskDefinition":"ff0d6b4b62ba20c8c4d18e388206021be2608a34939f243d59ddfe9dec7e2c8a","intentCommit":"4a49fb70e8080bbd486a44745020624b828135e9","inputs":[{"path":".kepler/changes/2026-10-16-hash-map-rule-matching-cache/design.md","blob":"f32300c574d00600c256b3a494d3e6a8df07d89f"},{"path":"AGENTS.md","blob":"5306df3ceaa1f6629d40d356dc8dda62ecbe4885"}]}
+- Steps:
+  1. Red — write a monitoring test asserting the `cache.token` tag equals the 12-hex digest prefix and never the raw token; run `go test ./monitoring/ -run 'TestCacheSpan'` and observe the intended failure (the current implementation tags the raw token).
+  2. Green — compute the sha256 hex prefix in monitoring/cache.go for both span helpers; rerun the same command until green.
+  3. Refactor — none expected beyond the small change; record the decision; rerun the monitoring suite and the analyzer token tests (tracer delegation).
+  4. If a phase fails for the wrong reason, Verify fails, or feedback is `changes-requested`, record the correction and repeat Red → Green → Refactor with relevant verification in this task; block for re-plan if the correction exceeds Acceptance or approved intent; Files is optional guidance.
+- Verify: `go test ./monitoring/ -count=1`, `go test ./analyzer/cache/ -run 'TestTokenHash'` (Docker), fresh LSP over monitoring/cache.go and affected test files → pass, no errors.
+- Commit: `fix(monitoring): tag cache spans with token digest prefix` — include the task-local progress record in the same commit.
 
 ## Done when
 
