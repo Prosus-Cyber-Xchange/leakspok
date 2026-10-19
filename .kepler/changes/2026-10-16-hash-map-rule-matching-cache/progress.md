@@ -29,6 +29,10 @@ tasks:
     title: "Tag cache spans with a token digest instead of raw token text"
     status: pending
     progress: tasks/task-6/progress.md
+  - id: 7
+    title: "Make the branch's own files lint-clean"
+    status: pending
+    progress: tasks/task-7/progress.md
 ---
 
 # Progress: Token-Hash Data Layout for the Rule-Matching Cache
@@ -41,3 +45,4 @@ tasks:
 | Task 4: Remove the legacy per-pair cache contract | pending | [details](tasks/task-4/progress.md) |
 | Task 5: Untrack the stray coordination artifact | pending | [details](tasks/task-5/progress.md) |
 | Task 6: Tag cache spans with a token digest instead of raw token text | pending | [details](tasks/task-6/progress.md) |
+| Task 7: Make the branch's own files lint-clean | pending | [details](tasks/task-7/progress.md) |

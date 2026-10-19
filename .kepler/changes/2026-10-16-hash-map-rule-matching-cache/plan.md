@@ -22,7 +22,7 @@ initialization:
   version: 1
   base: 2269fc9c1b0471ca2e87bf4dce004a58f1239865
   authority: "Requester (Caio Cavalcante) confirmed the task breakdown in the planning session on 2026-10-16 ('Approve breakdown'); intent authority recorded in intent_approvals"
-  breakdown: c9c0f017cffdaa7b864480c7ce7567db055b62f65307e5a73710fb4abd1c21ce
+  breakdown: 12929e5d7a702944796932dd03ae4c038082b40c49d8d18c37c0e948de3feb3e
   taskIds: [1, 2, 3, 4]
 ---
 
@@ -177,6 +177,29 @@ initialization:
   4. If a phase fails for the wrong reason, Verify fails, or feedback is `changes-requested`, record the correction and repeat Red → Green → Refactor with relevant verification in this task; block for re-plan if the correction exceeds Acceptance or approved intent; Files is optional guidance.
 - Verify: `go test ./monitoring/ -count=1`, `go test ./analyzer/cache/ -run 'TestTokenHash'` (Docker), fresh LSP over monitoring/cache.go and affected test files → pass, no errors.
 - Commit: `fix(monitoring): tag cache spans with token digest prefix` — include the task-local progress record in the same commit.
+
+### Task 7: Make the branch's own files lint-clean
+
+- Goal: remediate whole-branch review pass-2-blocking-1 (code-defect): `task lint` fails with 41 branch-introduced findings in the change's own added/rewritten files. The binding design gate "task lint and task test/unit must pass" (plan Overview, deferred to this stage) must hold for the branch's own files. Six pre-existing findings on unchanged constructs are out-of-scope repo debt — do not touch them.
+- Depends on: none
+- Files: optional guidance
+  - Created: none
+  - Modified: analyzer/cache/valkey.go (govet shadow rename), analyzer/cache/rule_matching_cache_token_test.go (revive param order; dead nolintlint directives at :332/:363 removed; exhaustive per-line nolint with justification), analyzer/serial_runner_test.go, analyzer/concurrent_runner_coalescing_test.go, analyzer/cache/rule_matching_cache_test.go, analyzer/coverage_gap_test.go, analyzer/serial_runner_coalescing_test.go (exhaustive per-line nolint on the intentionally-partial map[pattern.Entity]bool fixtures), monitoring/cache_test.go (testpackage compliance)
+  - Deleted: none
+- Acceptance:
+  - `task lint` reports ZERO findings in the branch's own files; the six pre-existing out-of-scope findings on unchanged constructs may remain (record them as the documented baseline debt).
+  - Behavior is unchanged: `go test ./analyzer/... ./monitoring/ -count=1` passes (Docker available); partial-map fixtures still exercise partial-map semantics (the per-line nolint preserves the intentionally-partial fixtures — do NOT add the missing keys, which would erase absent-entity miss coverage).
+  - The production govet shadow (analyzer/cache/valkey.go:138) is fixed by renaming, not suppression.
+  - Quality constraints: minimal means per the review's correction instruction — mechanical renames/reorders/deletions and established per-line nolint practice with justification (the repo documents inline nolint usage in AGENTS.md Known Linter Suppressions; the review's correction instruction endorses "established per-line nolint practice"). Any `.golangci.yml` change is FORBIDDEN in this task (AGENTS.md ask-first boundary).
+  - Decision context: whole-branch review Pass 2 (commit 24788b1) classification; the exhaustive linter's complaint against intentionally-partial fixtures is a fixture-intent conflict resolved by per-line justification, not fixture restructure.
+- Notes: {"version":1,"repository":"/Users/caio.cavalcante/workspace/ifood/ai-security/prosus-cyber-xchange/leakspok/.worktrees/hash-map-rule-matching-cache","taskDefinition":"bb16d7b22a5e47df998b58a5cd526571a20208fb29fa390d1136bd9e63fa39ed","intentCommit":"4a49fb70e8080bbd486a44745020624b828135e9","inputs":[{"path":"AGENTS.md","blob":"5306df3ceaa1f6629d40d356dc8dda62ecbe4885"}]}
+- Steps:
+  1. Red — run `task lint 2>&1 | tee /tmp/lint-before.txt` and record the exact finding list (the 41 branch-introduced findings are the failing state; the pre-existing six on unchanged constructs are documented debt, not the target).
+  2. Green — fix each branch-introduced finding with minimal means: rename the shadowed variable in valkey.go; reorder the helper's context parameter; delete the two dead nolintlint directives; add per-line `//nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses` on the partial map literals (established practice, preserves partial-map coverage); make monitoring/cache_test.go testpackage-compliant (keep unexported access if needed via the behavioral span assertion, or move the digest test accordingly — judge and record). Rerun `task lint` until only the six pre-existing findings remain.
+  3. Refactor — none expected; record the decision; rerun `go test ./analyzer/... ./monitoring/ -count=1` (Docker) and `go build ./...`.
+  4. If a phase fails for the wrong reason, Verify fails, or feedback is `changes-requested`, record the correction and repeat Red → Green → Refactor with relevant verification in this task; block for re-plan if the correction exceeds Acceptance or approved intent (e.g., if a finding cannot be fixed without a .golangci.yml change, STOP and block — that boundary requires owner approval); Files is optional guidance.
+- Verify: `task lint` with zero branch-introduced findings (six documented baseline-debt findings may remain, recorded); `go test ./analyzer/... ./monitoring/ -count=1`; `go build ./...`; fresh LSP over the changed files (no errors).
+- Commit: `fix(lint): make the branch's own files lint-clean` — include the task-local progress record in the same commit.
 
 ## Done when
 
