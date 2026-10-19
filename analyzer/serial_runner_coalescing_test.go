@@ -46,7 +46,7 @@ func (c *countingCache) saveCount() int {
 type cachedFalseCache struct{}
 
 func (cachedFalseCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
-	return map[pattern.Entity]bool{pattern.EntityEmail: false}, nil
+	return map[pattern.Entity]bool{pattern.EntityEmail: false}, nil //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 }
 
 func (cachedFalseCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {

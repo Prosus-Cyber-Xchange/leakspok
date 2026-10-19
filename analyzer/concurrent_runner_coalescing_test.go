@@ -215,7 +215,7 @@ func TestConcurrentRulesRunner_ProcessIssuesOneTokenScopedRead(t *testing.T) {
 	counts := cache.counts()
 	assert.Equal(t, 1, counts.tokenReads, "Process must issue exactly one token-scoped read")
 	assert.Equal(t, 1, counts.tokenSaves, "Process must persist the negatives in exactly one batched save")
-	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, cache.savedFields(),
+	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, cache.savedFields(), //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		"the evaluated negative is the only persisted field")
 }
 
@@ -224,7 +224,7 @@ func TestConcurrentRulesRunner_ProcessIssuesOneTokenScopedRead(t *testing.T) {
 // the matcher never runs and nothing is persisted.
 func TestConcurrentRulesRunner_ProcessCachedHitSkipsMatcher(t *testing.T) {
 	t.Run("cached positive hit", func(t *testing.T) {
-		cache := newTokenSpyCache(map[pattern.Entity]bool{pattern.EntityEmail: true})
+		cache := newTokenSpyCache(map[pattern.Entity]bool{pattern.EntityEmail: true}) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		var computes atomic.Int32
 		rule := analyzer.Rule{Name: "cached-rule", Matcher: countingMatcher(&computes)}
 		runner := newConcurrentRunnerWithCache(analyzer.RunnerOptions{}, cache, 4)
@@ -239,7 +239,7 @@ func TestConcurrentRulesRunner_ProcessCachedHitSkipsMatcher(t *testing.T) {
 	})
 
 	t.Run("cached negative hit", func(t *testing.T) {
-		cache := newTokenSpyCache(map[pattern.Entity]bool{pattern.EntityEmail: false})
+		cache := newTokenSpyCache(map[pattern.Entity]bool{pattern.EntityEmail: false}) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		var computes atomic.Int32
 		rule := analyzer.Rule{Name: "cached-rule", Matcher: countingMatcher(&computes)}
 		runner := newConcurrentRunnerWithCache(analyzer.RunnerOptions{}, cache, 4)
@@ -259,7 +259,7 @@ func TestConcurrentRulesRunner_ProcessCachedHitSkipsMatcher(t *testing.T) {
 // entity's matcher never runs, the absent entity is evaluated once, and its
 // negative is the only persisted field.
 func TestConcurrentRulesRunner_ProcessPartiallyCachedTokenSubmitsOnlyAbsent(t *testing.T) {
-	cache := newTokenSpyCache(map[pattern.Entity]bool{pattern.EntityEmail: false})
+	cache := newTokenSpyCache(map[pattern.Entity]bool{pattern.EntityEmail: false}) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 
 	var emailComputes, cpfComputes atomic.Int32
 	cpfMatcher := pattern.NewPatternMatcher(pattern.EntityCPF, pattern.PatternFunc(func(_ context.Context, _ []byte) bool {
@@ -283,7 +283,7 @@ func TestConcurrentRulesRunner_ProcessPartiallyCachedTokenSubmitsOnlyAbsent(t *t
 	counts := cache.counts()
 	assert.Equal(t, 1, counts.tokenReads)
 	assert.Equal(t, 1, counts.tokenSaves)
-	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityCPF: false}, cache.savedFields(),
+	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityCPF: false}, cache.savedFields(), //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		"only the absent entity's negative is persisted")
 }
 
@@ -339,7 +339,7 @@ func TestConcurrentRulesRunner_ProcessBackendReadErrorDegradesToFullEvaluation(t
 	counts := cache.counts()
 	assert.Equal(t, 1, counts.tokenReads, "exactly one read is attempted even when it fails")
 	assert.Equal(t, 1, counts.tokenSaves, "the evaluated negative is still persisted")
-	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, cache.savedFields())
+	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, cache.savedFields()) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 }
 
 // TestConcurrentRulesRunner_ProcessPositiveMatchStillFlushesNegatives pins
@@ -379,7 +379,7 @@ func TestConcurrentRulesRunner_ProcessPositiveMatchStillFlushesNegatives(t *test
 	assert.Equal(t, int32(1), emailComputes.Load())
 	counts := cache.counts()
 	assert.Equal(t, 1, counts.tokenSaves)
-	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, cache.savedFields(),
+	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, cache.savedFields(), //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		"negatives accumulated before the match are persisted and the positive match is never cached")
 }
 

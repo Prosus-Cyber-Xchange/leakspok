@@ -40,7 +40,7 @@ func startInspector(t *testing.T, addr string) valkey.Client {
 
 // newTokenCache builds a cache store against addr with the given base TTL,
 // jitter fraction, and client-side caching switch.
-func newTokenCache(t *testing.T, ctx context.Context, addr string, ttl time.Duration, jitter float64, disableCSC bool) analyzercache.CacheStore {
+func newTokenCache(ctx context.Context, t *testing.T, addr string, ttl time.Duration, jitter float64, disableCSC bool) analyzercache.CacheStore {
 	t.Helper()
 
 	options := analyzercache.RuleMatchingCacheOptions{
@@ -79,12 +79,12 @@ func TestTokenHash_HashStorage(t *testing.T) {
 	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
 	inspector := startInspector(t, addr)
-	cache := newTokenCache(t, ctx, addr, 10*time.Second, 0, false)
+	cache := newTokenCache(ctx, t, addr, 10*time.Second, 0, false)
 
 	token := []byte("hash-storage@example.com")
 
 	t.Run("no-match token persists one hash with one field per entity", func(t *testing.T) {
-		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{
+		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{ //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 			pattern.EntityEmail: false,
 			pattern.EntityCPF:   false,
 		}))
@@ -113,7 +113,7 @@ func TestTokenHash_HashStorage(t *testing.T) {
 	t.Run("repeat evaluation returns exactly the stored fields", func(t *testing.T) {
 		got, err := cache.GetMatches(ctx, token)
 		require.NoError(t, err)
-		assert.Equal(t, map[pattern.Entity]bool{
+		assert.Equal(t, map[pattern.Entity]bool{ //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 			pattern.EntityEmail: false,
 			pattern.EntityCPF:   false,
 		}, got)
@@ -128,18 +128,18 @@ func TestTokenHash_HashStorage(t *testing.T) {
 
 	t.Run("partially evaluated token returns only the stored subset", func(t *testing.T) {
 		partial := []byte("partial-token@example.com")
-		require.NoError(t, cache.SaveMatches(ctx, partial, map[pattern.Entity]bool{
+		require.NoError(t, cache.SaveMatches(ctx, partial, map[pattern.Entity]bool{ //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 			pattern.EntityEmail: false,
 		}))
 
 		got, err := cache.GetMatches(ctx, partial)
 		require.NoError(t, err)
-		assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, got,
+		assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, got, //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 			"entities absent from the hash are not reported")
 
 		// Later additions extend the stored fields without dropping earlier
 		// ones; the adapter codes positives as "1" when the caller provides them.
-		require.NoError(t, cache.SaveMatches(ctx, partial, map[pattern.Entity]bool{
+		require.NoError(t, cache.SaveMatches(ctx, partial, map[pattern.Entity]bool{ //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 			pattern.EntityCPF:   false,
 			pattern.EntityPhone: true,
 		}))
@@ -153,7 +153,7 @@ func TestTokenHash_HashStorage(t *testing.T) {
 
 		got, err = cache.GetMatches(ctx, partial)
 		require.NoError(t, err)
-		assert.Equal(t, map[pattern.Entity]bool{
+		assert.Equal(t, map[pattern.Entity]bool{ //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 			pattern.EntityEmail: false,
 			pattern.EntityCPF:   false,
 			pattern.EntityPhone: true,
@@ -172,16 +172,16 @@ func TestTokenHash_TTL(t *testing.T) {
 
 	t.Run("second SaveMatches keeps the original expiry", func(t *testing.T) {
 		const base = 10 * time.Second
-		cache := newTokenCache(t, ctx, addr, base, 0, false)
+		cache := newTokenCache(ctx, t, addr, base, 0, false)
 
 		token := []byte("ttl-once@example.com")
-		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false}))
+		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false})) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		pttlFirst := remainingTTL(t, inspector, token)
 
 		const sleep = 200 * time.Millisecond
 		time.Sleep(sleep)
 
-		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityCPF: false}))
+		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityCPF: false})) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		pttlSecond := remainingTTL(t, inspector, token)
 
 		// The remaining TTL must have kept decaying from the first reading
@@ -194,10 +194,10 @@ func TestTokenHash_TTL(t *testing.T) {
 
 	t.Run("zero jitter uses the base TTL exactly", func(t *testing.T) {
 		const base = 10 * time.Second
-		cache := newTokenCache(t, ctx, addr, base, 0, false)
+		cache := newTokenCache(ctx, t, addr, base, 0, false)
 
 		token := []byte("ttl-zero-jitter@example.com")
-		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false}))
+		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false})) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		savedAt := time.Now()
 
 		pttl := remainingTTL(t, inspector, token)
@@ -208,17 +208,17 @@ func TestTokenHash_TTL(t *testing.T) {
 	})
 
 	t.Run("zero base TTL writes without expiry", func(t *testing.T) {
-		cache := newTokenCache(t, ctx, addr, 0, 0.5, false)
+		cache := newTokenCache(ctx, t, addr, 0, 0.5, false)
 
 		token := []byte("ttl-no-expiry@example.com")
-		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false}))
+		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false})) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 
 		pttl := remainingTTL(t, inspector, token)
 		assert.Equal(t, int64(-1), pttl, "a zero base TTL must write the hash without expiry")
 
 		got, err := cache.GetMatches(ctx, token)
 		require.NoError(t, err)
-		assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, got)
+		assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, got) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 	})
 }
 
@@ -233,7 +233,7 @@ func TestTokenHash_JitterBand(t *testing.T) {
 	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
 	inspector := startInspector(t, addr)
-	cache := newTokenCache(t, ctx, addr, 10*time.Second, 0.15, false)
+	cache := newTokenCache(ctx, t, addr, 10*time.Second, 0.15, false)
 
 	const baseMs = 10000.0
 	const lower = baseMs * (1 - 0.15)
@@ -247,7 +247,7 @@ func TestTokenHash_JitterBand(t *testing.T) {
 	spread := false
 	for i := range tokens {
 		token := []byte(fmt.Sprintf("jitter-band-%02d@example.com", i))
-		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false}))
+		require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false})) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		savedAt := time.Now()
 
 		pttl := remainingTTL(t, inspector, token)
@@ -272,13 +272,13 @@ func TestTokenHash_ClientSideReads(t *testing.T) {
 	addr := cachetesting.StartValkeyContainer(t)
 	ctx := context.Background()
 
-	want := map[pattern.Entity]bool{
+	want := map[pattern.Entity]bool{ //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		pattern.EntityEmail: false,
 		pattern.EntityCPF:   false,
 	}
 
 	t.Run("repeated reads with client-side caching return the stored map", func(t *testing.T) {
-		cache := newTokenCache(t, ctx, addr, 10*time.Second, 0, false)
+		cache := newTokenCache(ctx, t, addr, 10*time.Second, 0, false)
 
 		token := []byte("csc-hot@example.com")
 		require.NoError(t, cache.SaveMatches(ctx, token, want))
@@ -293,7 +293,7 @@ func TestTokenHash_ClientSideReads(t *testing.T) {
 	})
 
 	t.Run("reads with the in-memory cache disabled use the plain path", func(t *testing.T) {
-		cache := newTokenCache(t, ctx, addr, 10*time.Second, 0, true)
+		cache := newTokenCache(ctx, t, addr, 10*time.Second, 0, true)
 
 		token := []byte("csc-disabled@example.com")
 		require.NoError(t, cache.SaveMatches(ctx, token, want))
@@ -319,7 +319,7 @@ func TestTokenHash_TracerGetMatches(t *testing.T) {
 	mockUnderlying := cachemock.NewMockCacheStore(ctrl)
 
 	data := []byte("tracer-token@example.com")
-	want := map[pattern.Entity]bool{pattern.EntityEmail: false}
+	want := map[pattern.Entity]bool{pattern.EntityEmail: false} //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 
 	var capturedCtx context.Context
 	mockUnderlying.EXPECT().
@@ -329,7 +329,7 @@ func TestTokenHash_TracerGetMatches(t *testing.T) {
 			return want, nil
 		})
 
-	callerCtx := context.WithValue(context.Background(), cacheTracerTestKey{}, "marker") //nolint:staticcheck // test-only context key
+	callerCtx := context.WithValue(context.Background(), cacheTracerTestKey{}, "marker")
 	tracer := analyzercache.NewCacheStoreTracer(mockUnderlying)
 	got, err := tracer.GetMatches(callerCtx, data)
 
@@ -350,7 +350,7 @@ func TestTokenHash_TracerSaveMatches(t *testing.T) {
 	mockUnderlying := cachemock.NewMockCacheStore(ctrl)
 
 	data := []byte("tracer-token@example.com")
-	results := map[pattern.Entity]bool{pattern.EntityEmail: false}
+	results := map[pattern.Entity]bool{pattern.EntityEmail: false} //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 
 	var capturedCtx context.Context
 	mockUnderlying.EXPECT().
@@ -360,7 +360,7 @@ func TestTokenHash_TracerSaveMatches(t *testing.T) {
 			return nil
 		})
 
-	callerCtx := context.WithValue(context.Background(), cacheTracerTestKey{}, "marker") //nolint:staticcheck // test-only context key
+	callerCtx := context.WithValue(context.Background(), cacheTracerTestKey{}, "marker")
 	tracer := analyzercache.NewCacheStoreTracer(mockUnderlying)
 	err := tracer.SaveMatches(callerCtx, data, results)
 

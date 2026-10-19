@@ -667,8 +667,9 @@ func TestSerialRulesRunner_ProcessIssuesOneTokenScopedRead(t *testing.T) {
 	cache := cachemock.NewMockCacheStore(ctrl)
 	cache.EXPECT().GetMatches(gomock.Any(), data).
 		Return(map[pattern.Entity]bool{}, nil).Times(1)
-	cache.EXPECT().SaveMatches(gomock.Any(), data, map[pattern.Entity]bool{pattern.EntityEmail: false}).
-		Return(nil).Times(1)
+	cache.EXPECT().SaveMatches(gomock.Any(), data,
+		map[pattern.Entity]bool{pattern.EntityEmail: false}, //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
+	).Return(nil).Times(1)
 
 	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
 
@@ -692,7 +693,7 @@ func TestSerialRulesRunner_ProcessCachedHitSkipsMatcher(t *testing.T) {
 	data := []byte("cached data")
 	cache := cachemock.NewMockCacheStore(ctrl)
 	cache.EXPECT().GetMatches(gomock.Any(), data).
-		Return(map[pattern.Entity]bool{pattern.EntityEmail: true}, nil).Times(1)
+		Return(map[pattern.Entity]bool{pattern.EntityEmail: true}, nil).Times(1) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 	// No SaveMatches expectation: a cached hit evaluates and persists nothing.
 
 	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
@@ -719,7 +720,7 @@ func TestSerialRulesRunner_ProcessCachedNegativeHitSkipsMatcherAndSave(t *testin
 	data := []byte("cached data")
 	cache := cachemock.NewMockCacheStore(ctrl)
 	cache.EXPECT().GetMatches(gomock.Any(), data).
-		Return(map[pattern.Entity]bool{pattern.EntityEmail: false}, nil).Times(1)
+		Return(map[pattern.Entity]bool{pattern.EntityEmail: false}, nil).Times(1) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 	// No SaveMatches expectation: the negative is already persisted.
 
 	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
@@ -747,9 +748,10 @@ func TestSerialRulesRunner_ProcessPartiallyCachedTokenEvaluatesOnlyAbsent(t *tes
 	data := []byte("partially cached data")
 	cache := cachemock.NewMockCacheStore(ctrl)
 	cache.EXPECT().GetMatches(gomock.Any(), data).
-		Return(map[pattern.Entity]bool{pattern.EntityEmail: false}, nil).Times(1)
-	cache.EXPECT().SaveMatches(gomock.Any(), data, map[pattern.Entity]bool{pattern.EntityCPF: false}).
-		Return(nil).Times(1)
+		Return(map[pattern.Entity]bool{pattern.EntityEmail: false}, nil).Times(1) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
+	cache.EXPECT().SaveMatches(gomock.Any(), data,
+		map[pattern.Entity]bool{pattern.EntityCPF: false}, //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
+	).Return(nil).Times(1)
 
 	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
 
@@ -819,8 +821,9 @@ func TestSerialRulesRunner_ProcessPositiveMatchStillFlushesNegatives(t *testing.
 	cache := cachemock.NewMockCacheStore(ctrl)
 	cache.EXPECT().GetMatches(gomock.Any(), data).
 		Return(map[pattern.Entity]bool{}, nil).Times(1)
-	cache.EXPECT().SaveMatches(gomock.Any(), data, map[pattern.Entity]bool{pattern.EntityEmail: false}).
-		Return(nil).Times(1)
+	cache.EXPECT().SaveMatches(gomock.Any(), data,
+		map[pattern.Entity]bool{pattern.EntityEmail: false}, //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
+	).Return(nil).Times(1)
 
 	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
 
@@ -847,8 +850,9 @@ func TestSerialRulesRunner_ProcessBackendReadErrorDegradesToFullEvaluation(t *te
 	cache := cachemock.NewMockCacheStore(ctrl)
 	cache.EXPECT().GetMatches(gomock.Any(), data).
 		Return(nil, assert.AnError).Times(1)
-	cache.EXPECT().SaveMatches(gomock.Any(), data, map[pattern.Entity]bool{pattern.EntityEmail: false}).
-		Return(nil).Times(1)
+	cache.EXPECT().SaveMatches(gomock.Any(), data,
+		map[pattern.Entity]bool{pattern.EntityEmail: false}, //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
+	).Return(nil).Times(1)
 
 	runner := newTokenScopedSerialRunner(analyzer.RunnerOptions{}, cache)
 
@@ -883,8 +887,9 @@ func TestSerialRulesRunner_ProcessTokenCoalescingSharesEvaluationAndSave(t *test
 	cache := cachemock.NewMockCacheStore(ctrl)
 	cache.EXPECT().GetMatches(gomock.Any(), data).
 		Return(map[pattern.Entity]bool{}, nil).Times(callers)
-	cache.EXPECT().SaveMatches(gomock.Any(), data, map[pattern.Entity]bool{pattern.EntityEmail: false}).
-		Return(nil).Times(1)
+	cache.EXPECT().SaveMatches(gomock.Any(), data,
+		map[pattern.Entity]bool{pattern.EntityEmail: false}, //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
+	).Return(nil).Times(1)
 
 	var computes atomic.Int32
 	matcherEntered := make(chan struct{})

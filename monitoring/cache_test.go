@@ -1,9 +1,11 @@
-package monitoring
+package monitoring_test
 
 import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/Prosus-Cyber-Xchange/leakspok/monitoring"
 )
 
 // cacheTagRecorder records the spans started for cache span helpers so tests
@@ -12,7 +14,7 @@ type cacheTagRecorder struct {
 	spans []*cacheTagSpan
 }
 
-func (r *cacheTagRecorder) StartSpanFromContext(ctx context.Context, _ string) (context.Context, Span) {
+func (r *cacheTagRecorder) StartSpanFromContext(ctx context.Context, _ string) (context.Context, monitoring.Span) {
 	span := &cacheTagSpan{tags: map[string]string{}}
 	r.spans = append(r.spans, span)
 
@@ -43,25 +45,25 @@ func TestCacheSpanTags_TokenDigestPrefix(t *testing.T) {
 	}{
 		{
 			name:       "get matches long token",
-			trace:      TraceCacheGetMatches,
+			trace:      monitoring.TraceCacheGetMatches,
 			token:      "john.doe@example.com",
 			wantDigest: "836f82db9912",
 		},
 		{
 			name:       "save matches long token",
-			trace:      TraceCacheSaveMatches,
+			trace:      monitoring.TraceCacheSaveMatches,
 			token:      "jane.roe@example.com",
 			wantDigest: "22fff12b355c",
 		},
 		{
 			name:       "get matches short token",
-			trace:      TraceCacheGetMatches,
+			trace:      monitoring.TraceCacheGetMatches,
 			token:      "abc",
 			wantDigest: "ba7816bf8f01",
 		},
 		{
 			name:       "save matches short token",
-			trace:      TraceCacheSaveMatches,
+			trace:      monitoring.TraceCacheSaveMatches,
 			token:      "abc",
 			wantDigest: "ba7816bf8f01",
 		},
@@ -70,9 +72,9 @@ func TestCacheSpanTags_TokenDigestPrefix(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			recorder := &cacheTagRecorder{}
-			original := GlobalTracer()
-			SetGlobalTracer(recorder)
-			defer SetGlobalTracer(original)
+			original := monitoring.GlobalTracer()
+			monitoring.SetGlobalTracer(recorder)
+			defer monitoring.SetGlobalTracer(original)
 
 			_, finish := tc.trace(context.Background(), tc.token)
 			finish()

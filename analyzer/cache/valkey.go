@@ -135,9 +135,9 @@ func (r *RuleMatchingCache) GetMatches(ctx context.Context, data []byte) (map[pa
 
 	results := make(map[pattern.Entity]bool, len(fields))
 	for field, message := range fields {
-		value, err := message.ToString()
-		if err != nil {
-			return nil, err
+		value, convErr := message.ToString()
+		if convErr != nil {
+			return nil, convErr
 		}
 		results[pattern.Entity(field)] = value == "1"
 	}

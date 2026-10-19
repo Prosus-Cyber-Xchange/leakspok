@@ -40,7 +40,7 @@ func TestRuleMatchingCache_AutoPipelining(t *testing.T) {
 	saveErrs := make(chan error, workers)
 	for i := 0; i < workers; i++ {
 		go func(i int) {
-			saveErrs <- cache.SaveMatches(ctx, tokens[i], map[pattern.Entity]bool{pattern.EntityEmail: i%2 == 0})
+			saveErrs <- cache.SaveMatches(ctx, tokens[i], map[pattern.Entity]bool{pattern.EntityEmail: i%2 == 0}) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		}(i)
 	}
 	for i := 0; i < workers; i++ {
@@ -62,7 +62,7 @@ func TestRuleMatchingCache_AutoPipelining(t *testing.T) {
 	for range workers {
 		r := <-results
 		require.NoError(t, r.err)
-		assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: r.idx%2 == 0}, r.got, "token index %d", r.idx)
+		assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: r.idx%2 == 0}, r.got, "token index %d", r.idx) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 	}
 }
 
@@ -289,11 +289,11 @@ func TestRuleMatchingCache_ValkeyConfigMutator_ClientNameObservable(t *testing.T
 
 	// Perform a real cache operation so the client connection is exercised.
 	token := []byte("client-name@example.com")
-	require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false}))
+	require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false})) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 
 	got, getErr := cache.GetMatches(ctx, token)
 	require.NoError(t, getErr)
-	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, got)
+	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, got) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 
 	cachetesting.AssertValkeyClientName(t, addr, clientName)
 }

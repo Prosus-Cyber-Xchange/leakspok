@@ -239,7 +239,7 @@ type prePopulatedCache struct {
 func (p *prePopulatedCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
 	if !p.matchReturned {
 		p.matchReturned = true
-		return map[pattern.Entity]bool{pattern.EntityEmail: p.matchResult}, nil
+		return map[pattern.Entity]bool{pattern.EntityEmail: p.matchResult}, nil //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 	}
 	return map[pattern.Entity]bool{}, nil
 }
