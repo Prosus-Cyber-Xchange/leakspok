@@ -20,3 +20,6 @@ go.work
 # idea
 .idea
 .claude
+
+# Pi agent tool-local state (never project-tracked)
+.pi/

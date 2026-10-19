@@ -240,11 +240,13 @@ func TestConcurrentRulesRunner_ProcessLargeRuleSet(t *testing.T) {
 	runner := newConcurrentRunner(8)
 	defer runner.Stop()
 
+	// Each rule carries a distinct entity so every rule evaluates
+	// independently under the token-scoped contract.
 	rules := make([]analyzer.Rule, 100)
 	for i := range 99 {
 		rules[i] = analyzer.Rule{
 			Name:    fmt.Sprintf("non-matching-%d", i),
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.Entity(fmt.Sprintf("entity-%d", i)), false),
 		}
 	}
 	rules[99] = analyzer.Rule{Name: "matching-rule", Matcher: newMatchingMatcher(ctrl)}
@@ -264,11 +266,13 @@ func TestConcurrentRulesRunner_DifferentWorkerCounts(t *testing.T) {
 			runner := newConcurrentRunner(workers)
 			defer runner.Stop()
 
+			// Distinct entities per rule: under the token-scoped contract one
+			// entity has one outcome shared by every rule claiming it.
 			rules := make([]analyzer.Rule, 20)
 			for i := range 19 {
 				rules[i] = analyzer.Rule{
 					Name:    fmt.Sprintf("non-matching-%d", i),
-					Matcher: newNonMatchingMatcher(ctrl),
+					Matcher: newEntityMatcher(ctrl, pattern.Entity(fmt.Sprintf("entity-%d", i)), false),
 				}
 			}
 			rules[19] = analyzer.Rule{Name: "target", Matcher: newMatchingMatcher(ctrl)}
