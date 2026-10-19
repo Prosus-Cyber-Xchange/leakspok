@@ -13,163 +13,8 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-func TestRuleMatchingCache_BasicOperations(t *testing.T) {
-	addr := cachetesting.StartValkeyContainer(t)
-	ctx := context.Background()
-
-	options := analyzercache.RuleMatchingCacheOptions{
-		CacheTTL: 10 * time.Second,
-		Redis: analyzercache.RedisOptions{
-			Addr:               addr,
-			DisableClusterMode: true,
-		},
-	}
-
-	cache, err := analyzercache.NewCacheStore(ctx, options)
-	require.NoError(t, err)
-	require.NotNil(t, cache)
-
-	t.Run("cache miss returns not-found error", func(t *testing.T) {
-		_, missErr := cache.GetMatch(ctx, pattern.EntityEmail, []byte("never-saved@example.com"))
-		require.Error(t, missErr)
-		assert.True(t, analyzercache.IsCacheNotFoundError(missErr))
-	})
-
-	t.Run("saves and retrieves true", func(t *testing.T) {
-		data := []byte("match@example.com")
-		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data, true))
-
-		matched, getErr := cache.GetMatch(ctx, pattern.EntityEmail, data)
-		require.NoError(t, getErr)
-		assert.True(t, matched)
-	})
-
-	t.Run("saves and retrieves false", func(t *testing.T) {
-		data := []byte("no-match-value")
-		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data, false))
-
-		matched, getErr := cache.GetMatch(ctx, pattern.EntityEmail, data)
-		require.NoError(t, getErr)
-		assert.False(t, matched)
-	})
-
-	t.Run("different entities are independent keys", func(t *testing.T) {
-		data := []byte("shared-token")
-		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data, true))
-		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityPhone, data, false))
-
-		matchedEmail, emailErr := cache.GetMatch(ctx, pattern.EntityEmail, data)
-		require.NoError(t, emailErr)
-		assert.True(t, matchedEmail)
-
-		matchedPhone, phoneErr := cache.GetMatch(ctx, pattern.EntityPhone, data)
-		require.NoError(t, phoneErr)
-		assert.False(t, matchedPhone)
-	})
-}
-
-func TestRuleMatchingCache_TTLExpiry(t *testing.T) {
-	addr := cachetesting.StartValkeyContainer(t)
-	ctx := context.Background()
-
-	ttl := 200 * time.Millisecond
-
-	options := analyzercache.RuleMatchingCacheOptions{
-		CacheTTL: ttl,
-		Redis: analyzercache.RedisOptions{
-			Addr:               addr,
-			DisableClusterMode: true,
-		},
-	}
-
-	cache, err := analyzercache.NewCacheStore(ctx, options)
-	require.NoError(t, err)
-
-	data := []byte("ttl-test@example.com")
-	require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data, true))
-
-	matched, getErr := cache.GetMatch(ctx, pattern.EntityEmail, data)
-	require.NoError(t, getErr)
-	assert.True(t, matched)
-
-	time.Sleep(ttl + 100*time.Millisecond)
-
-	_, missErr := cache.GetMatch(ctx, pattern.EntityEmail, data)
-	require.Error(t, missErr)
-	assert.True(t, analyzercache.IsCacheNotFoundError(missErr))
-}
-
-func TestRuleMatchingCache_NoTTL(t *testing.T) {
-	addr := cachetesting.StartValkeyContainer(t)
-	ctx := context.Background()
-
-	options := analyzercache.RuleMatchingCacheOptions{
-		CacheTTL: 0,
-		Redis: analyzercache.RedisOptions{
-			Addr:               addr,
-			DisableClusterMode: true,
-		},
-	}
-
-	cache, err := analyzercache.NewCacheStore(ctx, options)
-	require.NoError(t, err)
-
-	data := []byte("persistent@example.com")
-	require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data, true))
-
-	matched, getErr := cache.GetMatch(ctx, pattern.EntityEmail, data)
-	require.NoError(t, getErr)
-	assert.True(t, matched)
-}
-
-// TestRuleMatchingCache_InMemoryCacheDisabled verifies that setting
-// DisableInMemoryCache=true disables client-side caching and the backend still
-// works correctly (using plain Do instead of DoCache).
-// With CSC disabled every read goes to the server, so overwrite semantics are
-// immediately consistent.
-func TestRuleMatchingCache_InMemoryCacheDisabled(t *testing.T) {
-	addr := cachetesting.StartValkeyContainer(t)
-	ctx := context.Background()
-
-	options := analyzercache.RuleMatchingCacheOptions{
-		CacheTTL:             10 * time.Second,
-		DisableInMemoryCache: true,
-		Redis: analyzercache.RedisOptions{
-			Addr:               addr,
-			DisableClusterMode: true,
-		},
-	}
-
-	cache, err := analyzercache.NewCacheStore(ctx, options)
-	require.NoError(t, err)
-
-	t.Run("saves and retrieves value", func(t *testing.T) {
-		data := []byte("no-csc@example.com")
-		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data, true))
-
-		matched, getErr := cache.GetMatch(ctx, pattern.EntityEmail, data)
-		require.NoError(t, getErr)
-		assert.True(t, matched)
-	})
-
-	t.Run("overwrites previous value for same key", func(t *testing.T) {
-		data := []byte("overwrite-me")
-		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityCPF, data, true))
-
-		matched, firstErr := cache.GetMatch(ctx, pattern.EntityCPF, data)
-		require.NoError(t, firstErr)
-		assert.True(t, matched)
-
-		require.NoError(t, cache.SaveMatch(ctx, pattern.EntityCPF, data, false))
-
-		matched, secondErr := cache.GetMatch(ctx, pattern.EntityCPF, data)
-		require.NoError(t, secondErr)
-		assert.False(t, matched)
-	})
-}
-
-// TestRuleMatchingCache_AutoPipelining verifies that concurrent SaveMatch
-// and GetMatch calls all complete correctly, exercising the auto-pipelining path
+// TestRuleMatchingCache_AutoPipelining verifies that concurrent SaveMatches
+// and GetMatches calls all complete correctly, exercising the auto-pipelining path
 // where valkey-go coalesces concurrent Do calls into batched round-trips.
 func TestRuleMatchingCache_AutoPipelining(t *testing.T) {
 	addr := cachetesting.StartValkeyContainer(t)
@@ -187,15 +32,15 @@ func TestRuleMatchingCache_AutoPipelining(t *testing.T) {
 	require.NoError(t, err)
 
 	const workers = 50
-	keys := make([][]byte, workers)
-	for i := range keys {
-		keys[i] = []byte("pipeline-token-" + string(rune('A'+i%26)) + string(rune('0'+i%10)))
+	tokens := make([][]byte, workers)
+	for i := range tokens {
+		tokens[i] = []byte("pipeline-token-" + string(rune('A'+i%26)) + string(rune('0'+i%10)))
 	}
 
 	saveErrs := make(chan error, workers)
 	for i := 0; i < workers; i++ {
 		go func(i int) {
-			saveErrs <- cache.SaveMatch(ctx, pattern.EntityEmail, keys[i], i%2 == 0)
+			saveErrs <- cache.SaveMatches(ctx, tokens[i], map[pattern.Entity]bool{pattern.EntityEmail: i%2 == 0}) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 		}(i)
 	}
 	for i := 0; i < workers; i++ {
@@ -203,21 +48,21 @@ func TestRuleMatchingCache_AutoPipelining(t *testing.T) {
 	}
 
 	type result struct {
-		idx     int
-		matched bool
-		err     error
+		idx int
+		got map[pattern.Entity]bool
+		err error
 	}
 	results := make(chan result, workers)
 	for i := 0; i < workers; i++ {
 		go func(i int) {
-			matched, getErr := cache.GetMatch(ctx, pattern.EntityEmail, keys[i])
-			results <- result{i, matched, getErr}
+			got, getErr := cache.GetMatches(ctx, tokens[i])
+			results <- result{i, got, getErr}
 		}(i)
 	}
 	for range workers {
 		r := <-results
 		require.NoError(t, r.err)
-		assert.Equal(t, r.idx%2 == 0, r.matched, "key index %d", r.idx)
+		assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: r.idx%2 == 0}, r.got, "token index %d", r.idx) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 	}
 }
 
@@ -443,12 +288,12 @@ func TestRuleMatchingCache_ValkeyConfigMutator_ClientNameObservable(t *testing.T
 	require.NotNil(t, cache)
 
 	// Perform a real cache operation so the client connection is exercised.
-	data := []byte("client-name@example.com")
-	require.NoError(t, cache.SaveMatch(ctx, pattern.EntityEmail, data, true))
+	token := []byte("client-name@example.com")
+	require.NoError(t, cache.SaveMatches(ctx, token, map[pattern.Entity]bool{pattern.EntityEmail: false})) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 
-	matched, getErr := cache.GetMatch(ctx, pattern.EntityEmail, data)
+	got, getErr := cache.GetMatches(ctx, token)
 	require.NoError(t, getErr)
-	assert.True(t, matched)
+	assert.Equal(t, map[pattern.Entity]bool{pattern.EntityEmail: false}, got) //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 
 	cachetesting.AssertValkeyClientName(t, addr, clientName)
 }

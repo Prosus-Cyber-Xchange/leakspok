@@ -60,38 +60,6 @@ func TestTracePattern_ReturnsFinishFunc(t *testing.T) {
 	finish()
 }
 
-func TestTraceCacheGet_ReturnsFinishFunc(t *testing.T) {
-	ctx, finish := TraceCacheGet(context.Background(), "email")
-	if ctx == nil {
-		t.Fatal("TraceCacheGet must return a non-nil context")
-	}
-	if finish == nil {
-		t.Fatal("TraceCacheGet must return a non-nil finish function")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("finish func panicked: %v", r)
-		}
-	}()
-	finish()
-}
-
-func TestTraceCacheSave_ReturnsFinishFunc(t *testing.T) {
-	ctx, finish := TraceCacheSave(context.Background(), "email")
-	if ctx == nil {
-		t.Fatal("TraceCacheSave must return a non-nil context")
-	}
-	if finish == nil {
-		t.Fatal("TraceCacheSave must return a non-nil finish function")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("finish func panicked: %v", r)
-		}
-	}()
-	finish()
-}
-
 func TestNoopTracer_StartSpanFromContext_ContextValuesArePreserved(t *testing.T) {
 	type testKey struct{}
 	ctx := context.WithValue(context.Background(), testKey{}, "test-value")

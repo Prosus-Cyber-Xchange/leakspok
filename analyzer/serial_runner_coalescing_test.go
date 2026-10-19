@@ -15,20 +15,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// countingCache is a CacheStore test fake. GetMatch always reports a cache
-// miss; SaveMatch records how many saves were issued and can be configured to
-// fail with saveErr.
+// countingCache is a CacheStore test fake. The token-scoped read reports an
+// empty map (every entity a miss) and SaveMatches records how many saves were
+// issued and can be configured to fail with saveErr.
 type countingCache struct {
 	mu      sync.Mutex
 	saves   int
 	saveErr error
 }
 
-func (c *countingCache) GetMatch(_ context.Context, _ pattern.Entity, _ []byte) (bool, error) {
-	return false, analyzercache.ErrCacheNotFound
+func (c *countingCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
+	return map[pattern.Entity]bool{}, nil
 }
 
-func (c *countingCache) SaveMatch(_ context.Context, _ pattern.Entity, _ []byte, _ bool) error {
+func (c *countingCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.saves++
@@ -41,15 +41,15 @@ func (c *countingCache) saveCount() int {
 	return c.saves
 }
 
-// cachedFalseCache is a CacheStore test fake whose GetMatch returns a cached
-// false result, so the matcher must never run.
+// cachedFalseCache is a CacheStore test fake whose token-scoped read returns a
+// cached negative result for EntityEmail, so the matcher must never run.
 type cachedFalseCache struct{}
 
-func (cachedFalseCache) GetMatch(_ context.Context, _ pattern.Entity, _ []byte) (bool, error) {
-	return false, nil
+func (cachedFalseCache) GetMatches(_ context.Context, _ []byte) (map[pattern.Entity]bool, error) {
+	return map[pattern.Entity]bool{pattern.EntityEmail: false}, nil //nolint:exhaustive // intentionally-partial fixture: absent entities must remain misses
 }
 
-func (cachedFalseCache) SaveMatch(_ context.Context, _ pattern.Entity, _ []byte, _ bool) error {
+func (cachedFalseCache) SaveMatches(_ context.Context, _ []byte, _ map[pattern.Entity]bool) error {
 	return nil
 }
 

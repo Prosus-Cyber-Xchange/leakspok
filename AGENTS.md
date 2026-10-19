@@ -159,7 +159,7 @@ golangci-lint run -c .golangci.yml
 
 ## Dependencies & Versioning
 
-- **Go Version**: 1.24.0 (toolchain 1.24.3)
+- **Go Version**: 1.25.0 (per `go.mod`)
 - **Key Dependencies**:
   - `code.ifoodcorp.com.br/ifood/security/libs/go/foodsec-go-sdk`: Internal logging and security utilities
   - `github.com/google/uuid`: UUID generation
@@ -174,10 +174,9 @@ task vendor  # This runs go mod tidy && go mod vendor
 
 ## CI/CD
 
-### GitLab CI Pipeline (`.gitlab-ci.yml`)
-- **lint**: Runs golangci-lint, reports code quality
-- **unit_test**: Runs tests with coverage reports
-- **release**: Automatic versioning and tagging based on `VERSION` file
+### GitHub Actions CI (`.github/workflows/`)
+- **Unit Tests** (`unit-tests.yml`): on every push and PR to `main`, runs `go test -short -race -count=1` with coverage
+- **Tag Release** (`tag-release.yml`): when `VERSION` changes on `main`, creates and pushes the annotated `v<VERSION>` tag that triggers the release
 
 ### Local Pre-Commit Checks
 - Configuration in `.pre-commit-config.yaml`
@@ -220,8 +219,8 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
-	"github.com/New-Horizons-Team/leakspok"
-	"github.com/New-Horizons-Team/leakspok/analyzer"
+	"github.com/Prosus-Cyber-Xchange/leakspok"
+	"github.com/Prosus-Cyber-Xchange/leakspok/analyzer"
 )
 
 func main() {
@@ -282,3 +281,37 @@ Check git history for context on recent changes.
 
 ## Recent Changes
 - feat/concurrent-runner: Added Go 1.24.0 (toolchain 1.24.3) + `sync`, `sync/atomic`, `context`, `log/slog` (stdlib only — no new external deps)
+
+## Git Workflow
+
+Standing standards recorded by kepler-init (2026-10-16), grounded in repository history:
+
+- **Branch naming**: `<type>/<short-description>` — observed types: `feat/`, `fix/`, `chore/`, `release/` (e.g. `feat/regex-pattern-constructor`, `fix/valkey-read-replicas`, `chore/bump-version-0.1.1`, `release/v0.1.0`). Do not start work on the default branch.
+- **Commit format**: Conventional Commits (e.g. `chore: bump version to 0.1.1`). Commits and tags are SSH-signed per the host Git configuration; do not disable signing.
+- **Pull requests**: GitHub PRs into `main`, squash or merge commits referencing the PR (`Merge pull request #N from ...`).
+- **Releases**: Version-driven via the `VERSION` file. `task tag` creates the annotated `v<VERSION>` tag; the `tag-release` GitHub Actions workflow publishes releases from tags.
+- **Default finish strategy**: `pull-request`. Open a PR for review; do not merge locally without review unless explicitly directed.
+
+## Boundaries
+
+Standing standards recorded by kepler-init (2026-10-16):
+
+### Always
+
+- Run `task lint` and `task test/unit` before committing; a change is not done while either fails.
+- Keep `vendor/` in sync with `go.mod`: run `task vendor` after any dependency change.
+- Preserve the library's defensive-security purpose: detect and anonymize sensitive data; never weaken detection defaults as a shortcut.
+- Prefer the Go standard library; add external dependencies only when they carry clear value.
+
+### Ask first
+
+- Adding a new external dependency to `go.mod`.
+- Changing the public API of the `analyzer/` or `pattern/` packages (Leakspok is a published library consumed by other services).
+- Changing the rule-matching cache key format, value encoding, or TTL semantics (the cache is shared across consumers).
+- Modifying `.golangci.yml` or adding lint suppressions.
+- Changing the `VERSION` file or release flow.
+
+### Never
+
+- Commit secrets, credentials, or tokens to the repository.
+- Use the library, its examples, or its tooling to extract or harvest sensitive data; Leakspok is defensive by design (see README).

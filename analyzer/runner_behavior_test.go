@@ -46,6 +46,10 @@ func newConcurrentRunnerFactory(_ *gomock.Controller) analyzer.RuleRunner {
 
 // Helper functions for creating mock matchers
 
+// newMatchingMatcher and newNonMatchingMatcher share pattern.EntityEmail, so
+// they are only suitable for single-rule or all-matching scenarios; scenarios
+// mixing outcomes must give each rule a distinct entity via newEntityMatcher
+// because the token-scoped contract deduplicates evaluation by entity.
 func newMatchingMatcher(ctrl *gomock.Controller) *analyzermock.MockMatcher {
 	mock := analyzermock.NewMockMatcher(ctrl)
 	mock.EXPECT().Entity().Return(pattern.EntityEmail).AnyTimes()
@@ -240,14 +244,16 @@ func testProcessMultipleRulesFirstMatches(t *testing.T, runner analyzer.RuleRunn
 }
 
 func testProcessMultipleRulesSecondMatches(t *testing.T, runner analyzer.RuleRunner, ctrl *gomock.Controller) {
+	// Distinct entities per rule: under the token-scoped contract one entity
+	// has one outcome shared by every rule claiming it.
 	rules := []analyzer.Rule{
 		{
 			Name:    "non-matching-rule",
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityEmail, false),
 		},
 		{
 			Name:    "matching-rule",
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityCPF, true),
 		},
 	}
 
@@ -289,18 +295,19 @@ func testProcessWithNilData(t *testing.T, runner analyzer.RuleRunner, ctrl *gomo
 }
 
 func testProcessLargeRuleSet(t *testing.T, runner analyzer.RuleRunner, ctrl *gomock.Controller) {
-	// Create a large set of non-matching rules
+	// Create a large set of non-matching rules, each with a distinct entity so
+	// every rule evaluates independently under the token-scoped contract.
 	rules := make([]analyzer.Rule, 100)
 	for i := 0; i < 99; i++ {
 		rules[i] = analyzer.Rule{
 			Name:    fmt.Sprintf("non-matching-rule-%d", i),
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.Entity(fmt.Sprintf("entity-%d", i)), false),
 		}
 	}
 	// Add one matching rule at the end
 	rules[99] = analyzer.Rule{
 		Name:    "matching-rule",
-		Matcher: newMatchingMatcher(ctrl),
+		Matcher: newEntityMatcher(ctrl, pattern.EntityCPF, true),
 	}
 
 	matchedRule, found := runner.Process(context.Background(), rules, []byte("test data"))
@@ -528,27 +535,28 @@ func testProcessWithContext(t *testing.T, runner analyzer.RuleRunner, ctrl *gomo
 }
 
 func testProcessReturnsFirstMatchRegardlessOfOrder(t *testing.T, runner analyzer.RuleRunner, ctrl *gomock.Controller) {
-	// Mix of matching and non-matching rules
+	// Mix of matching and non-matching rules, each with a distinct entity so
+	// every rule evaluates independently under the token-scoped contract.
 	rules := []analyzer.Rule{
 		{
 			Name:    "non-matching-1",
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityEmail, false),
 		},
 		{
 			Name:    "non-matching-2",
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityCPF, false),
 		},
 		{
 			Name:    "matching-1",
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityPhone, true),
 		},
 		{
 			Name:    "matching-2",
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityCreditCard, true),
 		},
 		{
 			Name:    "non-matching-3",
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityIPAddress, false),
 		},
 	}
 
@@ -563,24 +571,26 @@ func testProcessReturnsFirstMatchRegardlessOfOrder(t *testing.T, runner analyzer
 }
 
 func testProcessDisabledAndEnabledMix(t *testing.T, runner analyzer.RuleRunner, ctrl *gomock.Controller) {
+	// Each rule carries a distinct entity so the enabled rules evaluate
+	// independently under the token-scoped contract.
 	rules := []analyzer.Rule{
 		{
 			Name:    "disabled-matching-1",
 			Disable: true,
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityEmail, true),
 		},
 		{
 			Name:    "non-matching",
-			Matcher: newNonMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityCPF, false),
 		},
 		{
 			Name:    "disabled-matching-2",
 			Disable: true,
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityPhone, true),
 		},
 		{
 			Name:    "enabled-matching",
-			Matcher: newMatchingMatcher(ctrl),
+			Matcher: newEntityMatcher(ctrl, pattern.EntityCreditCard, true),
 		},
 	}
 
