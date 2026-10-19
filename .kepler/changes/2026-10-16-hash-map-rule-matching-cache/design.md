@@ -77,7 +77,7 @@ Boundaries and dependency direction are unchanged: both runners depend on the Ca
 - Runner flow: fetch once per token; a rule whose entity is present in the map uses the cached value; absent entities are evaluated after their exception checks; negatives accumulate in a batch flushed with one SaveMatches call, including a flush before an early return on a positive match, preserving today's behavior of persisting negatives computed before the match.
 - Concurrent runner: the map is fetched before workers are submitted; only missing entities are submitted; first-match cancellation is unchanged; negatives collected before cancellation or match are flushed once.
 - Coalescing: the flight key becomes the token; the flight wraps the token's miss evaluation and batched save; exception checks remain outside the flight, as the canonical design requires.
-- Tracing: one read span and at most one write span per token, tagged with the token instead of the entity.
+- Tracing: one read span and at most one write span per token, tagged with a short non-reversible SHA-256 digest prefix of the token — never the raw token content. Token text is unsanitized PII candidate material and must not be recorded in APM; the digest preserves token-granular span correlation without it.
 
 ## Testing Strategy
 
